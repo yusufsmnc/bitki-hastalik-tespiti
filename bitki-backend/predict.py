@@ -43,6 +43,10 @@ transform = transforms.Compose([
 # Bedeli bilerek kabul ediyoruz: fotoğrafların ~%63'üne "emin değil" denir.
 # Modelin eşiksiz genel doğruluğu bu sette %62.2 -- yanlış yönlendirmektense
 # susmak tercih edildi.
+# UYARI: Eşik, yukarıdaki rakamların ölçüldüğü AYNI test setine bakılarak
+# seçildi. Bu yüzden %84.6 isabet iyimser bir tahmin; görülmemiş yeni
+# fotoğraflarda biraz daha düşük çıkması beklenir. Dürüst bir ölçüm için
+# eşik ayrı bir doğrulama setinde seçilip test setinde bir kez ölçülmeli.
 GUVEN_ESIGI = 0.95
 
 # Model sınıf adlarını İngilizce döndürür (PlantVillage adları). Çiftçiye

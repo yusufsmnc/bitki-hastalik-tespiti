@@ -7,16 +7,11 @@ import json
 with open("class_names.json") as f:
     class_names = json.load(f)
 num_classes = len(class_names)
-print(f"{num_classes} sınıf yüklendi.")
 
 model = models.resnet18(weights=None)
-model.fc = nn.Linear(model.fc.in_features, num_classes)  
-
-
+model.fc = nn.Linear(model.fc.in_features, num_classes)
 model.load_state_dict(torch.load("best_model_v3.pth", map_location="cpu"))
 model.eval()
-print("Model yüklendi.")
-
 
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
@@ -24,13 +19,33 @@ transform = transforms.Compose([
     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
 
-img = Image.open("test.jpg").convert("RGB")
-x = transform(img).unsqueeze(0)
-with torch.no_grad():   
-    output = model(x)              
-    probs = torch.softmax(output, dim=1)
-    guven, tahmin_idx = torch.max(probs, 1) 
+GUVEN_ESIGI = 0.60
 
-tahmin_sinif = class_names[tahmin_idx.item()]
-print(f"\nTahmin: {tahmin_sinif}")
-print(f"Güven: {guven.item()*100:.1f}%")
+def tahmin_et_goruntu(img):
+    x = transform(img).unsqueeze(0)
+
+    with torch.no_grad():
+        output = model(x)
+        probs = torch.softmax(output, dim=1)
+        guven, tahmin_idx = torch.max(probs, 1)
+
+    guven = guven.item()
+    tahmin_sinif = class_names[tahmin_idx.item()]
+
+    if guven < GUVEN_ESIGI:
+        return {
+            "durum": "emin_degil",
+            "mesaj": "Bu yaprağı net tanıyamadım. Daha yakın ve net bir fotoğraf çeker misiniz?",
+            "en_yakin_tahmin": tahmin_sinif,
+            "guven": round(guven * 100, 1)
+        }
+    else:
+        return {
+            "durum": "basarili",
+            "hastalik": tahmin_sinif,
+            "guven": round(guven * 100, 1)
+        }
+
+if __name__ == "__main__":
+    img = Image.open("test.jpg").convert("RGB")
+    print(tahmin_et_goruntu(img))

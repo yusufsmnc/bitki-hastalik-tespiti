@@ -23,21 +23,27 @@ Yaprak fotoğrafından bitki hastalığı tespiti yapan bir sistem. Hedef kullan
 
 ## 2. Şu anki durum (tamamlanan)
 
-- `bitki-backend/predict.py` — model yükleme (script başında, bir kere) + `tahmin_et_goruntu(img)` fonksiyonu. Görüntü nesnesi alır, softmax ile güven skoru hesaplar, güven eşiği (`GUVEN_ESIGI`, şu an 0.60 geçici) altında "emin_degil" döndürür.
-- `bitki-backend/main.py` — FastAPI. `/health` ve `/predict` (dosya yükleyip tahmin) endpoint'leri çalışıyor.
+- `bitki-backend/predict.py` — model yükleme (script başında, bir kere) + `tahmin_et_goruntu(img)` fonksiyonu. Görüntü nesnesi alır, softmax ile güven skoru hesaplar, güven eşiği (`GUVEN_ESIGI` = 0.95, Faz 2'de veriyle seçildi) altında "emin_degil" döndürür.
+- `bitki-backend/main.py` — FastAPI. `/health` ve `/predict` (dosya yükleyip tahmin) endpoint'leri çalışıyor. `/predict` EXIF yönünü düzeltir, bozuk dosyaya 400, 10 MB üstüne 413 döner.
 - Git deposu kurulu, GitHub'a bağlı: `yusufsmnc/bitki-hastalik-tespiti`.
-- `requirements.txt`, `.gitignore` hazır.
+- `requirements.txt` + `requirements-dev.txt` (depo kökünde), `.gitignore`, testler (`tests/`) ve CI (`.github/workflows/ci.yml`) hazır.
 
 ### Klasör yapısı
 ```
 bitki-hastalik-tespiti/         (git deposu kökü)
 ├── .gitignore
 ├── README.md
+├── requirements.txt            (uygulama bağımlılıkları)
+├── requirements-dev.txt        (pytest, httpx)
+├── pytest.ini
+├── .github/workflows/ci.yml
+├── tests/                      (conftest.py sahte model üretir)
 ├── bitki-backend/
 │   ├── venv/                   (git yok)
 │   ├── predict.py
 │   ├── main.py
-│   ├── requirements.txt
+│   ├── tune_threshold.py
+│   ├── plantdoc_split/         (git yok — eşik ayarı için test görüntüleri)
 │   ├── best_model_v3.pth       (git yok — yerelde var)
 │   ├── class_names.json        (git yok — yerelde var)
 │   └── test.jpg                (git yok)

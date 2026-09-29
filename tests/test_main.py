@@ -57,3 +57,30 @@ def test_predict_dosyasiz_istek_reddedilir():
     # FastAPI eksik zorunlu alanda 422 döner; bunu kendimiz yazmamıza gerek yok.
     cevap = client.post("/predict")
     assert cevap.status_code == 422
+
+
+def test_predict_exif_yonunu_uygular(monkeypatch):
+    # 300x200 yatay bir fotoğraf, EXIF'te "90 derece döndür" (Orientation=6)
+    # etiketiyle. Telefonlar dik çekilen fotoğrafı böyle kaydeder.
+    img = Image.new("RGB", (300, 200), (34, 139, 34))
+    exif = img.getexif()
+    exif[0x0112] = 6  # 0x0112 = Orientation etiketi
+    tampon = io.BytesIO()
+    img.save(tampon, format="JPEG", exif=exif)
+
+    # Modele giden görüntüyü yakalamak için tahmin fonksiyonunu değiştiriyoruz.
+    gorulen = {}
+
+    def sahte_tahmin(gelen_img):
+        gorulen["boyut"] = gelen_img.size
+        return {"durum": "basarili", "hastalik": "x", "guven": 99.0}
+
+    monkeypatch.setattr(main, "tahmin_et_goruntu", sahte_tahmin)
+
+    cevap = client.post(
+        "/predict",
+        files={"file": ("dik.jpg", tampon.getvalue(), "image/jpeg")},
+    )
+    assert cevap.status_code == 200
+    # Döndürme uygulandıysa en ve boy yer değiştirmiş olmalı.
+    assert gorulen["boyut"] == (200, 300)

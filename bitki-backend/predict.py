@@ -1,18 +1,31 @@
+import os
+import json
+from pathlib import Path
+
 import torch
 import torch.nn as nn
 from torchvision import models, transforms
 from PIL import Image
-import json
 
-with open("class_names.json") as f:
+# Yollar bu dosyanın bulunduğu klasöre göre çözülür; böylece uygulama
+# hangi klasörden başlatılırsa başlatılsın model dosyaları bulunur.
+# Ortam değişkenleri testlerin (ve CI'ın) sahte bir model vermesini sağlar.
+BURASI = Path(__file__).resolve().parent
+CLASS_NAMES_YOLU = Path(os.getenv("CLASS_NAMES_PATH", BURASI / "class_names.json"))
+MODEL_YOLU = Path(os.getenv("MODEL_PATH", BURASI / "best_model_v3.pth"))
+
+with open(CLASS_NAMES_YOLU, encoding="utf-8") as f:
     class_names = json.load(f)
 num_classes = len(class_names)
 
+# Model uygulama başlarken bir kere yüklenir, her istekte değil.
 model = models.resnet18(weights=None)
 model.fc = nn.Linear(model.fc.in_features, num_classes)
-model.load_state_dict(torch.load("best_model_v3.pth", map_location="cpu"))
+model.load_state_dict(torch.load(MODEL_YOLU, map_location="cpu"))
 model.eval()
 
+# DİKKAT: Buradaki resize ve normalize değerleri eğitimdeki eval_transform ile
+# birebir aynı olmalı. Farklı olursa model saçmalar.
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
@@ -47,5 +60,5 @@ def tahmin_et_goruntu(img):
         }
 
 if __name__ == "__main__":
-    img = Image.open("test.jpg").convert("RGB")
+    img = Image.open(BURASI / "test.jpg").convert("RGB")
     print(tahmin_et_goruntu(img))

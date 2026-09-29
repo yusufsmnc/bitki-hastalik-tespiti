@@ -32,7 +32,18 @@ transform = transforms.Compose([
     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
 
-GUVEN_ESIGI = 0.60
+# Güven eşiği veriyle seçildi (2026-09-29, tune_threshold.py ile ölçüldü).
+# PlantDoc test setinde 569 gerçek tarla görüntüsü üzerinde ölçüm:
+#   eşik 0.80 -> kapsama %58.3, isabet %73.8
+#   eşik 0.90 -> kapsama %45.0, isabet %80.1
+#   eşik 0.95 -> kapsama %36.6, isabet %84.6   <-- seçilen
+#   eşik 0.97 -> kapsama %30.2, isabet %87.8
+# Kural: isabetin ~%85'e ulaştığı EN DÜŞÜK eşik. 0.97 daha isabetli ama
+# 6.4 puan daha kapsama yakıyor; kazanç bu bedeli karşılamıyor.
+# Bedeli bilerek kabul ediyoruz: fotoğrafların ~%63'üne "emin değil" denir.
+# Modelin eşiksiz genel doğruluğu bu sette %62.2 -- yanlış yönlendirmektense
+# susmak tercih edildi.
+GUVEN_ESIGI = 0.95
 
 def tahmin_et_goruntu(img):
     x = transform(img).unsqueeze(0)

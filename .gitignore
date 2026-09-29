@@ -220,3 +220,6 @@ __marimo__/
 # Proje: model dosyaları ve yerel test görüntüsü
 *.pth
 test.jpg
+
+# Proje: yerel etiketli test veri seti (git'e girmemeli)
+plantdoc_split/

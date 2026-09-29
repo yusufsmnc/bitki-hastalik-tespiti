@@ -1,0 +1,40 @@
+name: CI
+
+# Her push'ta ve her pull request'te testleri çalıştır.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Depoyu indir
+        uses: actions/checkout@v4
+
+      - name: Python kur
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      # PyTorch'un varsayılan (PyPI) sürümü Linux'ta CUDA paketlerini de
+      # indirir (~2 GB). CI'da GPU yok, tahminler CPU'da yapılıyor; bu yüzden
+      # PyTorch'u önce resmi CPU deposundan kuruyoruz. Sonraki adımdaki
+      # requirements.txt aynı sürümü istediği için tekrar indirilmez.
+      - name: PyTorch'u CPU sürümüyle kur
+        run: |
+          pip install torch==2.14.0 torchvision==0.29.0 \
+            --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Bağımlılıkları kur
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      # Testler gerçek modele bağlı değil: tests/conftest.py aynı mimaride
+      # sahte bir model üretiyor (bkz. o dosyadaki açıklama).
+      - name: Testleri çalıştır
+        run: pytest -v

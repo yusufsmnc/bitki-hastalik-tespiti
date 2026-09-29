@@ -84,3 +84,21 @@ def test_predict_exif_yonunu_uygular(monkeypatch):
     assert cevap.status_code == 200
     # Döndürme uygulandıysa en ve boy yer değiştirmiş olmalı.
     assert gorulen["boyut"] == (200, 300)
+
+
+def test_predict_resim_olmayan_dosyayi_400_ile_reddeder():
+    cevap = client.post(
+        "/predict",
+        files={"file": ("not.txt", b"bu bir resim degil", "text/plain")},
+    )
+    assert cevap.status_code == 400
+    assert "resim" in cevap.json()["detail"]
+
+
+def test_predict_yarim_kalmis_resmi_400_ile_reddeder():
+    # Gerçek bir PNG'nin sadece başı: format tanınır ama veri eksik.
+    cevap = client.post(
+        "/predict",
+        files={"file": ("yarim.png", png_bayt()[:100], "image/png")},
+    )
+    assert cevap.status_code == 400

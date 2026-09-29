@@ -1,0 +1,4 @@
+# Sadece test/geliştirme için gerekli paketler.
+# Uygulamanın kendisi bunlara ihtiyaç duymaz (requirements.txt'e bakın).
+pytest>=8.0
+httpx>=0.27

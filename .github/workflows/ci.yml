@@ -12,13 +12,13 @@ jobs:
 
     steps:
       - name: Depoyu indir
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Yerelde kullanilan surumle ayni (3.14). PyTorch'un resmi CPU deposunda
       # cp314 icin Linux wheel'i mevcut oldugu dogrulandi:
       # torch-2.14.0+cpu-cp314-cp314-manylinux_2_28_x86_64.whl
       - name: Python kur
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.14"
           cache: pip

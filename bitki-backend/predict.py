@@ -45,6 +45,32 @@ transform = transforms.Compose([
 # susmak tercih edildi.
 GUVEN_ESIGI = 0.95
 
+# Model sınıf adlarını İngilizce döndürür (PlantVillage adları). Çiftçiye
+# gösterilecek Türkçe karşılıklar burada. Listede olmayan bir ad gelirse
+# (örn. yeni bir model) ham ad kullanılır, uygulama çökmez.
+TURKCE_ADLAR = {
+    "Pepper__bell___Bacterial_spot": "Biber - Bakteriyel leke",
+    "Pepper__bell___healthy": "Biber - Sağlıklı",
+    "Potato___Early_blight": "Patates - Erken yanıklık",
+    "Potato___Late_blight": "Patates - Geç yanıklık (mildiyö)",
+    "Potato___healthy": "Patates - Sağlıklı",
+    "Tomato_Bacterial_spot": "Domates - Bakteriyel leke",
+    "Tomato_Early_blight": "Domates - Erken yanıklık",
+    "Tomato_Late_blight": "Domates - Geç yanıklık (mildiyö)",
+    "Tomato_Leaf_Mold": "Domates - Yaprak küfü",
+    "Tomato_Septoria_leaf_spot": "Domates - Septoria yaprak lekesi",
+    "Tomato_Spider_mites_Two_spotted_spider_mite": "Domates - Kırmızı örümcek",
+    "Tomato__Target_Spot": "Domates - Hedef leke",
+    "Tomato__Tomato_YellowLeaf__Curl_Virus": "Domates - Sarı yaprak kıvırcıklık virüsü",
+    "Tomato__Tomato_mosaic_virus": "Domates - Mozaik virüsü",
+    "Tomato_healthy": "Domates - Sağlıklı",
+}
+
+
+def turkce_ad(sinif):
+    return TURKCE_ADLAR.get(sinif, sinif)
+
+
 def tahmin_et_goruntu(img):
     x = transform(img).unsqueeze(0)
 
@@ -61,12 +87,14 @@ def tahmin_et_goruntu(img):
             "durum": "emin_degil",
             "mesaj": "Bu yaprağı net tanıyamadım. Daha yakın ve net bir fotoğraf çeker misiniz?",
             "en_yakin_tahmin": tahmin_sinif,
+            "en_yakin_tahmin_tr": turkce_ad(tahmin_sinif),
             "guven": round(guven * 100, 1)
         }
     else:
         return {
             "durum": "basarili",
             "hastalik": tahmin_sinif,
+            "hastalik_tr": turkce_ad(tahmin_sinif),
             "guven": round(guven * 100, 1)
         }
 

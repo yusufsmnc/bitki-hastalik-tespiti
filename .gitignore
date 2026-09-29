@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Proje: model dosyaları ve yerel test görüntüsü
+*.pth
+test.jpg

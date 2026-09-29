@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from PIL import Image, ImageOps
 import io
 
@@ -13,9 +13,15 @@ def health():
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
     icerik = await file.read()
-    img = Image.open(io.BytesIO(icerik))
-    # Telefonlar fotoğrafı döndürmek yerine EXIF'e "bu resim dönük" etiketi
-    # yazar. Etiketi uygulamazsak model yan yatmış bir yaprak görür.
-    img = ImageOps.exif_transpose(img).convert("RGB")
+    try:
+        img = Image.open(io.BytesIO(icerik))
+        # Telefonlar fotoğrafı döndürmek yerine EXIF'e "bu resim dönük" etiketi
+        # yazar. Etiketi uygulamazsak model yan yatmış bir yaprak görür.
+        img = ImageOps.exif_transpose(img).convert("RGB")
+    except (OSError, Image.DecompressionBombError):
+        # OSError: resim değil ya da bozuk/yarım dosya.
+        # DecompressionBombError: küçük dosya ama devasa piksel sayısı (saldırı).
+        # İkisinde de sunucu çökmesin, kullanıcıya anlaşılır bir cevap dönsün.
+        raise HTTPException(status_code=400, detail="Yüklenen dosya okunabilir bir resim değil.")
     sonuc = tahmin_et_goruntu(img)
     return sonuc

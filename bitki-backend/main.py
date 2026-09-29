@@ -6,6 +6,10 @@ from predict import tahmin_et_goruntu
 
 app = FastAPI(title="Bitki Hastalığı Tespiti API")
 
+# Telefon fotoğrafları genelde 2-8 MB. Üst sınır koymazsak dev bir dosya
+# olduğu gibi belleğe okunur ve sunucuyu zorlar.
+MAKS_DOSYA_BOYUTU = 10 * 1024 * 1024  # 10 MB
+
 @app.get("/health")
 def health():
     return {"durum": "calisiyor"}
@@ -15,7 +19,11 @@ def health():
 # cevap veremezdi. Düz def'i FastAPI ayrı bir thread'de çalıştırır.
 @app.post("/predict")
 def predict(file: UploadFile = File(...)):
-    icerik = file.file.read()
+    # Sınırın 1 bayt fazlasını okumak yeterli: o kadar varsa dosya zaten büyük.
+    icerik = file.file.read(MAKS_DOSYA_BOYUTU + 1)
+    if len(icerik) > MAKS_DOSYA_BOYUTU:
+        raise HTTPException(status_code=413, detail="Dosya çok büyük (en fazla 10 MB).")
+
     try:
         img = Image.open(io.BytesIO(icerik))
         # Telefonlar fotoğrafı döndürmek yerine EXIF'e "bu resim dönük" etiketi

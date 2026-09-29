@@ -42,6 +42,7 @@ def test_esik_altinda_emin_degil_doner(monkeypatch):
     assert sonuc["durum"] == "emin_degil"
     assert "mesaj" in sonuc
     assert sonuc["en_yakin_tahmin"] in predict.class_names
+    assert sonuc["en_yakin_tahmin_tr"] == predict.turkce_ad(sonuc["en_yakin_tahmin"])
     assert "hastalik" not in sonuc
 
 
@@ -53,6 +54,7 @@ def test_esik_ustunde_basarili_doner(monkeypatch):
 
     assert sonuc["durum"] == "basarili"
     assert sonuc["hastalik"] in predict.class_names
+    assert sonuc["hastalik_tr"] == predict.turkce_ad(sonuc["hastalik"])
     assert "mesaj" not in sonuc
 
 
@@ -76,3 +78,12 @@ def test_on_isleme_egitimdekiyle_ayni_kalmali():
     normalize = adimlar[-1]
     assert list(normalize.mean) == [0.485, 0.456, 0.406]
     assert list(normalize.std) == [0.229, 0.224, 0.225]
+
+
+def test_bilinen_sinifin_turkce_adi_var():
+    assert predict.turkce_ad("Tomato_Leaf_Mold") == "Domates - Yaprak küfü"
+
+
+def test_bilinmeyen_sinif_ham_adiyla_doner():
+    # Sözlükte olmayan bir sınıf gelirse çökmemeli, ham adı dönmeli.
+    assert predict.turkce_ad("Elma_Kara_Leke") == "Elma_Kara_Leke"

@@ -10,9 +10,12 @@ app = FastAPI(title="Bitki Hastalığı Tespiti API")
 def health():
     return {"durum": "calisiyor"}
 
+# "async def" değil düz "def": tahmin CPU'yu meşgul eden senkron bir iş.
+# async içinde çalışsaydı tahmin bitene kadar sunucu başka hiçbir isteğe
+# cevap veremezdi. Düz def'i FastAPI ayrı bir thread'de çalıştırır.
 @app.post("/predict")
-async def predict(file: UploadFile = File(...)):
-    icerik = await file.read()
+def predict(file: UploadFile = File(...)):
+    icerik = file.file.read()
     try:
         img = Image.open(io.BytesIO(icerik))
         # Telefonlar fotoğrafı döndürmek yerine EXIF'e "bu resim dönük" etiketi

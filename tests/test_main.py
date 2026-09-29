@@ -102,3 +102,13 @@ def test_predict_yarim_kalmis_resmi_400_ile_reddeder():
         files={"file": ("yarim.png", png_bayt()[:100], "image/png")},
     )
     assert cevap.status_code == 400
+
+
+def test_predict_cok_buyuk_dosyayi_413_ile_reddeder(monkeypatch):
+    # Testte gerçekten 10 MB üretmemek için sınırı geçici olarak küçültüyoruz.
+    monkeypatch.setattr(main, "MAKS_DOSYA_BOYUTU", 100)
+    cevap = client.post(
+        "/predict",
+        files={"file": ("buyuk.png", png_bayt(), "image/png")},
+    )
+    assert cevap.status_code == 413

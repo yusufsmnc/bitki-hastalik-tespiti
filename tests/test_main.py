@@ -28,6 +28,18 @@ def test_health_calisiyor_der():
     assert cevap.json() == {"durum": "calisiyor"}
 
 
+def test_kok_adres_arayuzu_dondurur():
+    cevap = client.get("/")
+    assert cevap.status_code == 200
+    assert "text/html" in cevap.headers["content-type"]
+
+
+def test_cors_baska_adresten_istege_izin_verir():
+    # Tarayıcının başka bir adresten gelen istekte gönderdiği "Origin" başlığı.
+    cevap = client.get("/health", headers={"Origin": "http://ornek.com"})
+    assert cevap.headers["access-control-allow-origin"] == "*"
+
+
 def test_predict_gorunt_kabul_eder():
     cevap = client.post(
         "/predict",

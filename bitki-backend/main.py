@@ -1,5 +1,5 @@
 from fastapi import FastAPI, UploadFile, File
-from PIL import Image
+from PIL import Image, ImageOps
 import io
 
 from predict import tahmin_et_goruntu
@@ -13,6 +13,9 @@ def health():
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
     icerik = await file.read()
-    img = Image.open(io.BytesIO(icerik)).convert("RGB")
+    img = Image.open(io.BytesIO(icerik))
+    # Telefonlar fotoğrafı döndürmek yerine EXIF'e "bu resim dönük" etiketi
+    # yazar. Etiketi uygulamazsak model yan yatmış bir yaprak görür.
+    img = ImageOps.exif_transpose(img).convert("RGB")
     sonuc = tahmin_et_goruntu(img)
     return sonuc

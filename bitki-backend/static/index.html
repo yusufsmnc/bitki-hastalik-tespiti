@@ -2,12 +2,447 @@
 <html lang="tr">
 <head>
   <meta charset="utf-8">
+  <!-- Bu meta olmadan telefon sayfayı 980px genişlikmiş gibi varsayar ve
+       her şeyi küçültüp gösterir. Mobil tasarımın ön şartı. -->
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Bitki Hastalığı Tespiti</title>
+
+  <style>
+    /* ===== 1. TEMEL AYARLAR ===================================== */
+
+    /* border-box: padding ve border genişliğe EKLENMEZ, içine sayılır.
+       Bu tek satır, mobilde yaşanan taşmaların çoğunu baştan keser. */
+    * { box-sizing: border-box; }
+
+    /* Tasarım sistemi: renkler ve ölçüler tek yerde tanımlı.
+       Bir rengi değiştirmek istersen sadece burayı düzenlersin. */
+    :root {
+      --yesil:        #2e7d32;  /* ana renk (yaprak yeşili) */
+      --yesil-acik:   #43a047;  /* hover / vurgu */
+      --arka-plan:    #f4f7f2;  /* sayfa zemini */
+      --kart:         #ffffff;  /* kart zemini */
+      --metin:        #1b2a1e;  /* ana metin */
+      --metin-soluk:  #5a6b5d;  /* ikincil metin */
+      --kenar:        #e2e8e0;  /* ince çizgiler */
+
+      /* Durum renkleri: "serit" kartın sol kenarındaki kalın çizgi,
+         "metin" ise etiket yazısının rengi. İkisi ayrı, çünkü turuncu
+         gibi açık renkler beyaz zeminde yazı olarak okunmuyor
+         (kontrast 3:1'de kalıyor). Yazıda koyu tonunu kullanıyoruz. */
+      --saglikli-serit:    #2e7d32;
+      --saglikli-metin:    #2e7d32;
+      --hastalik-serit:    #e67700;
+      --hastalik-metin:    #9a5200;
+      --emin-degil-serit:  #607d8b;
+      --emin-degil-metin:  #4a5f6a;
+      --hata-serit:        #c62828;
+      --hata-metin:        #c62828;
+
+      --kose:  14px;                      /* yuvarlak köşe yarıçapı */
+      --golge: 0 1px 3px rgba(0,0,0,.08); /* kartlarda hafif derinlik */
+    }
+
+    body {
+      margin: 0;
+      background: var(--arka-plan);
+      color: var(--metin);
+      /* Sistem fontu: indirilmez, anında gelir, her cihazda çalışır. */
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      font-size: 16px;   /* güneşte okunabilirlik için alt sınır */
+      line-height: 1.5;  /* satır takibi kolaylaşır */
+    }
+
+    /* Sayfa kabı: sabit genişlik YOK. Dar telefonda %100 olur,
+       geniş ekranda 480px'de durup ortalanır. Taşma bu yüzden imkânsız. */
+    .sayfa {
+      width: 100%;
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 20px 16px 32px;
+    }
+
+    /* Uzun hastalık adları dar ekranda kelime ortasından kırılabilsin. */
+    h1, h2, p { overflow-wrap: break-word; }
+
+    /* 3c'de JS bu sınıfı ekleyip çıkararak durumlar arasında geçiş yapacak. */
+    .gizli { display: none; }
+
+
+    /* ===== 2. BAŞLIK ============================================ */
+    /* Başlık bilinçli olarak KÜÇÜK. Çiftçi zaten bu sayfayı bilerek
+       açtı; ona gereken bilgi değil, yapılacak iş. En büyük öğe buton. */
+
+    .baslik { margin-bottom: 20px; text-align: center; }
+
+    .baslik h1 {
+      margin: 0 0 6px;
+      font-size: 22px;
+      color: var(--yesil);
+    }
+
+    .alt-baslik {
+      margin: 0;
+      font-size: 15px;
+      color: var(--metin-soluk);
+    }
+
+
+    /* ===== 3. KART KABUĞU ======================================= */
+    /* Tüm bölümler aynı kart görünümünü paylaşır: beyaz zemin,
+       yumuşak köşe, hafif gölge. Tutarlılık = tanıdıklık. */
+
+    .kart {
+      background: var(--kart);
+      border-radius: var(--kose);
+      box-shadow: var(--golge);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+
+
+    /* ===== 4. ANA EYLEM: FOTOĞRAF BUTONU ======================== */
+
+    /* Dosya seçicinin kendisi her tarayıcıda farklı ve çirkin görünür,
+       stil de kabul etmez. Bu yüzden onu görsel olarak gizleyip üstüne
+       <label>'ı buton gibi biçimlendiriyoruz. Etiketle input bağlı
+       olduğu için label'a basmak input'u açar.
+       display:none DEĞİL: o, klavye erişimini ve focus'u öldürürdü. */
+    .gizli-input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+    }
+
+    .ana-buton {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      min-height: 64px;     /* şartname 56px diyor; parmakla bakmadan
+                               basılabilsin diye biraz üstüne çıktık */
+      padding: 16px 18px;
+      background: var(--yesil);
+      color: #ffffff;       /* yeşil üstünde beyaz kontrast 5.2:1 — AA geçer */
+      border: none;
+      border-radius: var(--kose);
+      font-size: 19px;
+      font-weight: 600;
+      text-align: center;
+      cursor: pointer;
+      /* Uzun basınca çıkan mavi seçim/parlama telefonda kirli durur. */
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    .ana-buton:hover { background: var(--yesil-acik); }
+    .ana-buton:active { transform: scale(.98); }
+
+    /* Klavyeyle gezen kullanıcı için görünür odak halkası. Odak asıl
+       input'a gelir, biz onu görsel olarak label üzerinde gösteriyoruz. */
+    .gizli-input:focus-visible + .ana-buton {
+      outline: 3px solid var(--yesil-acik);
+      outline-offset: 3px;
+    }
+
+    /* Tahmin sürerken JS bu sınıfı ekleyecek (3c) — çift gönderim olmasın. */
+    .ana-buton.pasif { opacity: .5; pointer-events: none; }
+
+    .ipucu {
+      margin: 14px 0 0;
+      font-size: 14px;
+      color: var(--metin-soluk);
+      text-align: center;
+    }
+
+
+    /* ===== 5. ÖNİZLEME (Durum B) ================================ */
+
+    .kart-basligi {
+      margin: 0 0 12px;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--metin-soluk);
+    }
+
+    /* max-width:100% olmasa 4000px'lik telefon fotoğrafı sayfayı taşırırdı.
+       object-fit:contain görüntüyü kırpmadan kutuya sığdırır. */
+    .onizleme {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      max-height: 300px;
+      height: auto;
+      object-fit: contain;
+      border-radius: 10px;
+      background: #eef1ed;
+    }
+
+
+    /* ===== 6. YÜKLENİYOR (Durum B) ============================== */
+
+    .yukleniyor-kart {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    /* Saf CSS spinner: görsel dosyası ya da kütüphane yok.
+       Dairenin üst kenarı yeşil, kalanı gri; dönünce yükleniyor hissi verir. */
+    .spinner {
+      flex-shrink: 0;   /* dar ekranda ezilip oval olmasın */
+      width: 30px;
+      height: 30px;
+      border: 4px solid var(--kenar);
+      border-top-color: var(--yesil);
+      border-radius: 50%;
+      animation: don .9s linear infinite;
+    }
+
+    @keyframes don { to { transform: rotate(360deg); } }
+
+    /* Hareketten rahatsız olan kullanıcılar için yavaşlat. */
+    @media (prefers-reduced-motion: reduce) {
+      .spinner { animation-duration: 2.5s; }
+    }
+
+    .yukleniyor-metin { margin: 0; font-size: 17px; font-weight: 600; }
+
+
+    /* ===== 7. SONUÇ KARTLARI (Durum C ve D) ===================== */
+    /* Durum rengi kartın SOL KENARINDA şerit olarak duruyor, kartın
+       dolgusu olarak değil. Sebep: turuncu/gri zemine yazılan metin
+       güneşte okunmaz. Böylece metin her zaman beyaz zeminde koyu kalır,
+       renk ise yine anlam taşır. */
+
+    .sonuc-kart { border-left: 6px solid var(--serit); }
+
+    .sonuc-saglikli   { --serit: var(--saglikli-serit);   --etiket: var(--saglikli-metin); }
+    .sonuc-hastalik   { --serit: var(--hastalik-serit);   --etiket: var(--hastalik-metin); }
+    .sonuc-emin-degil { --serit: var(--emin-degil-serit); --etiket: var(--emin-degil-metin); }
+    .sonuc-hata       { --serit: var(--hata-serit);       --etiket: var(--hata-metin); }
+
+    /* Renk körü kullanıcı şeridi ayırt edemeyebilir. Bu yüzden durum
+       HER ZAMAN metinle de yazılı: renk tek başına bilgi taşımıyor. */
+    .durum-etiketi {
+      margin: 0 0 6px;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--etiket);
+    }
+
+    /* Sonuç ekranında en büyük öğe hastalık adı — güven yüzdesi değil.
+       Çiftçinin kararı "neyim var"a göre değişir, "%87"ye göre değil. */
+    .hastalik-adi {
+      margin: 0 0 16px;
+      font-size: 26px;
+      line-height: 1.25;
+    }
+
+    .guven-satiri {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 15px;
+      color: var(--metin-soluk);
+      margin-bottom: 6px;
+    }
+
+    .guven-deger { font-size: 18px; font-weight: 700; color: var(--metin); }
+
+    /* Yüzdenin görsel karşılığı. Sayıyı okumadan da fikir verir. */
+    .guven-bar {
+      height: 10px;
+      background: var(--kenar);
+      border-radius: 999px;
+      overflow: hidden;   /* dolgu köşelerden taşmasın */
+    }
+
+    .guven-dolgu {
+      height: 100%;
+      background: var(--serit);
+      /* Genişliği 3c'de JS gerçek güven değerine göre yazacak. */
+      width: 87%;
+    }
+
+    .sonuc-mesaji { margin: 0; font-size: 17px; }
+
+    /* CLAUDE.md dürüstlük kuralı: bu sistem tanı makinesi değil.
+       Bu yüzden uyarı "küçük gri yasal not" gibi değil, sonucun bir
+       parçası gibi duruyor — kendi çerçevesi ve okunur boyutu var. */
+    .durustluk-notu {
+      margin: 18px 0 0;
+      padding: 12px 14px;
+      background: #f7f9f6;
+      border: 1px solid var(--kenar);
+      border-radius: 10px;
+      font-size: 15px;
+      color: var(--metin);
+    }
+
+
+    /* ===== 8. İKİNCİL BUTONLAR ================================== */
+    /* "Yeni Fotoğraf" / "Tekrar Dene": dokunma alanı ana butonla aynı
+       rahatlıkta ama görsel ağırlığı daha az (içi boş, çerçeveli). */
+
+    .ikincil-buton {
+      display: block;
+      width: 100%;
+      min-height: 56px;
+      margin-top: 16px;
+      padding: 14px 18px;
+      background: var(--kart);
+      color: var(--yesil);
+      border: 2px solid var(--yesil);
+      border-radius: var(--kose);
+      font-family: inherit;
+      font-size: 17px;
+      font-weight: 600;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .ikincil-buton:hover { background: #eef5ee; }
+    .ikincil-buton:active { transform: scale(.98); }
+    .ikincil-buton:focus-visible {
+      outline: 3px solid var(--yesil-acik);
+      outline-offset: 3px;
+    }
+
+
+    /* ===== 9. ALT NOT =========================================== */
+    /* Kapsam ve sınırlar kalıcı olarak ekranda. Sessiz ama her zaman orada. */
+
+    .alt-not {
+      margin: 8px 0 0;
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--metin-soluk);
+      text-align: center;
+    }
+  </style>
 </head>
+
 <body>
-  <!-- Geçici sayfa: gerçek arayüz Faz 3b'de yazılacak. -->
-  <h1>Bitki Hastalığı Tespiti</h1>
-  <p>Yakında.</p>
+<div class="sayfa">
+
+  <!-- ===== BAŞLIK ===== -->
+  <header class="baslik">
+    <h1>Bitki Hastalığı Tespiti</h1>
+    <p class="alt-baslik">Yaprağın fotoğrafını çek, olası hastalığı öğren.</p>
+  </header>
+
+  <main>
+
+    <!-- ===== DURUM A - BAŞLANGIÇ (başta görünen tek eylem) ===== -->
+    <section class="kart" id="eylem-alani">
+      <!-- accept="image/*": sadece resimler listelensin.
+           capture="environment": telefonda doğrudan ARKA kamerayı açar. -->
+      <input type="file" id="foto-secici" class="gizli-input"
+             accept="image/*" capture="environment">
+
+      <!-- Emoji sadece süs; yanında tam metin var. Emoji desteklenmese
+           bile buton anlaşılır kalır, ekran okuyucu ise emojiyi atlar. -->
+      <label class="ana-buton" for="foto-secici">
+        <span aria-hidden="true">📷</span> Fotoğraf Çek veya Yükle
+      </label>
+
+      <p class="ipucu">En iyi sonuç için yaprağı yakından, net ve iyi ışıkta çek.</p>
+    </section>
+
+
+    <!-- ===== DURUM B - ÖNİZLEME (3c'de görünür olacak) ===== -->
+    <section class="kart gizli" id="onizleme-alani">
+      <h2 class="kart-basligi">Gönderilen fotoğraf</h2>
+      <img id="onizleme-gorsel" class="onizleme" src="" alt="Seçtiğin yaprak fotoğrafı">
+    </section>
+
+
+    <!-- ===== DURUM B - YÜKLENİYOR ===== -->
+    <!-- aria-live="polite": içerik değişince ekran okuyucu kullanıcıyı
+         sözünü kesmeden bilgilendirir. -->
+    <section class="kart yukleniyor-kart gizli" id="yukleniyor-alani" aria-live="polite">
+      <div class="spinner" aria-hidden="true"></div>
+      <p class="yukleniyor-metin">Analiz ediliyor...</p>
+    </section>
+
+
+    <!-- ===== DURUM C - SONUÇ: BAŞARILI ===== -->
+    <!-- İçindeki metinler ÖRNEKTİR; 3c'de JS gerçek cevapla değiştirecek.
+         Sınıfı da (sonuc-hastalik / sonuc-saglikli) JS belirleyecek. -->
+    <section class="kart sonuc-kart sonuc-hastalik gizli" id="sonuc-basarili" aria-live="polite">
+      <p class="durum-etiketi" id="durum-etiketi">
+        <span aria-hidden="true">⚠</span> Hastalık belirtisi
+      </p>
+
+      <h2 class="hastalik-adi" id="hastalik-adi">Domates — Geç Yanıklık</h2>
+
+      <div class="guven-satiri">
+        <span>Modelin güveni</span>
+        <span class="guven-deger" id="guven-deger">%87</span>
+      </div>
+      <div class="guven-bar">
+        <div class="guven-dolgu" id="guven-dolgu"></div>
+      </div>
+
+      <p class="durustluk-notu">
+        Bu bir ön değerlendirmedir, kesin tanı değildir.
+        Emin olmak için bir ziraat uzmanına danışın.
+      </p>
+
+      <button type="button" class="ikincil-buton" id="yeni-foto-basarili">
+        <span aria-hidden="true">🔄</span> Yeni Fotoğraf
+      </button>
+    </section>
+
+
+    <!-- ===== DURUM C - SONUÇ: EMİN DEĞİL ===== -->
+    <section class="kart sonuc-kart sonuc-emin-degil gizli" id="sonuc-emin-degil" aria-live="polite">
+      <p class="durum-etiketi">
+        <span aria-hidden="true">?</span> Emin değilim
+      </p>
+
+      <p class="sonuc-mesaji" id="emin-degil-mesaji">
+        Bu yaprağı net tanıyamadım. Daha yakın ve net bir fotoğraf çeker misiniz?
+      </p>
+
+      <p class="durustluk-notu">
+        Yaprak tek başına, çerçeveyi dolduracak kadar yakın ve gölgesiz olursa
+        sonuç daha güvenilir olur.
+      </p>
+
+      <button type="button" class="ikincil-buton" id="yeni-foto-emin-degil">
+        <span aria-hidden="true">🔄</span> Yeni Fotoğraf
+      </button>
+    </section>
+
+
+    <!-- ===== DURUM D - HATA ===== -->
+    <section class="kart sonuc-kart sonuc-hata gizli" id="sonuc-hata" aria-live="polite">
+      <p class="durum-etiketi">
+        <span aria-hidden="true">✕</span> Bağlantı sorunu
+      </p>
+
+      <p class="sonuc-mesaji" id="hata-mesaji">
+        Bir sorun oluştu. İnternet bağlantını kontrol edip tekrar dener misin?
+      </p>
+
+      <button type="button" class="ikincil-buton" id="tekrar-dene">
+        <span aria-hidden="true">🔄</span> Tekrar Dene
+      </button>
+    </section>
+
+  </main>
+
+  <!-- ===== ALT NOT - kapsam ve sınırlar kalıcı olarak ekranda ===== -->
+  <footer>
+    <p class="alt-not">
+      Sadece domates, patates ve biber yapraklarını tanır.<br>
+      Karar destek amaçlıdır; uzman görüşünün yerini tutmaz.
+    </p>
+  </footer>
+
+</div>
 </body>
 </html>

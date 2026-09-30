@@ -344,7 +344,7 @@
 
       <!-- Emoji sadece süs; yanında tam metin var. Emoji desteklenmese
            bile buton anlaşılır kalır, ekran okuyucu ise emojiyi atlar. -->
-      <label class="ana-buton" for="foto-secici">
+      <label class="ana-buton" for="foto-secici" id="ana-buton">
         <span aria-hidden="true">📷</span> Fotoğraf Çek veya Yükle
       </label>
 
@@ -444,5 +444,254 @@
   </footer>
 
 </div>
+
+<script>
+/* ===============================================================
+   ETKİLEŞİM MANTIĞI (Faz 3c)
+   Akış: dosya seç -> önizle -> /predict'e gönder -> sonucu göster
+   =============================================================== */
+
+/* ---- 1. Öğeleri bir kere yakala -----------------------------
+   Her seferinde document.getElementById çağırmak yerine başta bir
+   kere bulup değişkende tutuyoruz: hem daha hızlı, hem bir id'yi
+   yanlış yazmışsak hatayı en başta fark ederiz. */
+const fotoSecici      = document.getElementById("foto-secici");
+const anaButon        = document.getElementById("ana-buton");
+const onizlemeAlani   = document.getElementById("onizleme-alani");
+const onizlemeGorsel  = document.getElementById("onizleme-gorsel");
+const yukleniyorAlani = document.getElementById("yukleniyor-alani");
+const sonucBasarili   = document.getElementById("sonuc-basarili");
+const sonucEminDegil  = document.getElementById("sonuc-emin-degil");
+const sonucHata       = document.getElementById("sonuc-hata");
+const durumEtiketi    = document.getElementById("durum-etiketi");
+const hastalikAdi     = document.getElementById("hastalik-adi");
+const guvenDeger      = document.getElementById("guven-deger");
+const guvenDolgu      = document.getElementById("guven-dolgu");
+const eminDegilMesaji = document.getElementById("emin-degil-mesaji");
+const hataMesaji      = document.getElementById("hata-mesaji");
+
+/* Sunucu hiç cevap vermezse çiftçi sonsuza kadar dönen spinnere bakmasın.
+   Tahmin normalde 1-3 saniye; 60 saniye fazlasıyla cömert bir üst sınır. */
+const ZAMAN_ASIMI_MS = 60000;
+
+/* Önizleme için ürettiğimiz geçici adres. Serbest bırakılması gerektiği
+   için dışarıda tutuyoruz (bkz. onizlemeTemizle). */
+let onizlemeURL = null;
+
+
+/* ---- 2. Durum geçişleri -------------------------------------
+   Tek geçiş noktası: önce HEPSİNİ gizler, sonra istenenleri açar.
+   Böylece iki sonuç kartının aynı anda ekranda kalması imkânsız. */
+const DURUM_BOLUMLERI = [
+  onizlemeAlani, yukleniyorAlani, sonucBasarili, sonucEminDegil, sonucHata
+];
+
+function durumGoster(...gorunecekler) {
+  DURUM_BOLUMLERI.forEach(bolum => bolum.classList.add("gizli"));
+  gorunecekler.forEach(bolum => bolum.classList.remove("gizli"));
+}
+
+/* Çift gönderimi engeller: devre dışı bir input'un label'ına basmak
+   hiçbir şey yapmaz. .pasif sınıfı da bunu görsel olarak belli eder. */
+function butonKilitle(kilitli) {
+  fotoSecici.disabled = kilitli;
+  anaButon.classList.toggle("pasif", kilitli);
+}
+
+
+/* ---- 3. Önizleme ve bellek temizliği ------------------------
+   createObjectURL, dosyayı bellekte TUTAN geçici bir adres üretir ve
+   sekme kapanana kadar kendiliğinden bırakılmaz. Her yeni fotoğrafta
+   öncekini revokeObjectURL ile bırakıyoruz; yoksa 20 deneme sonunda
+   20 fotoğraf bellekte birikir ve ucuz telefonda sekme çöker. */
+function onizlemeTemizle() {
+  if (onizlemeURL) {
+    URL.revokeObjectURL(onizlemeURL);
+    onizlemeURL = null;
+  }
+  // src="" bazı tarayıcılarda sayfanın kendisine boş bir istek attırır.
+  onizlemeGorsel.removeAttribute("src");
+}
+
+function onizlemeGoster(dosya) {
+  onizlemeURL = URL.createObjectURL(dosya);
+  onizlemeGorsel.src = onizlemeURL;
+}
+
+
+/* ---- 4. Dosya seçilince ------------------------------------- */
+fotoSecici.addEventListener("change", () => {
+  const dosya = fotoSecici.files[0];
+
+  // Kullanıcı dosya seçiciyi açıp vazgeçtiyse ekrana dokunma.
+  if (!dosya) return;
+
+  onizlemeTemizle();  // önceki fotoğrafın izini sil
+
+  /* İlk savunma hattı: resim olmayan dosyayı sunucuya hiç göndermeyiz.
+     İkinci hat backend'de: o da bozuk dosyaya 400 döner. İstemci
+     kontrolü hız için, sunucu kontrolü güvenlik için — istemciye
+     tek başına asla güvenilmez. */
+  if (!dosya.type.startsWith("image/")) {
+    hataGoster("Bu bir resim dosyası değil. Lütfen bir yaprak fotoğrafı seç.");
+    return;
+  }
+
+  onizlemeGoster(dosya);
+  tahminGonder(dosya);
+});
+
+
+/* ---- 5. Sunucuya gönder ------------------------------------- */
+async function tahminGonder(dosya) {
+  durumGoster(onizlemeAlani, yukleniyorAlani);
+  butonKilitle(true);
+
+  /* AbortController: sunucu takılıp kalırsa fetch sonsuza kadar bekler.
+     Sayaç dolunca isteği iptal ediyoruz ki kullanıcının hep bir çıkışı olsun. */
+  const kontrol = new AbortController();
+  const sayac = setTimeout(() => kontrol.abort(), ZAMAN_ASIMI_MS);
+
+  try {
+    const form = new FormData();
+    // "file" adı backend'deki parametreyle BİREBİR aynı olmalı
+    // (main.py -> def predict(file: UploadFile = File(...))). Farklı
+    // yazarsak FastAPI alanı bulamaz ve 422 döner.
+    form.append("file", dosya);
+
+    /* Content-Type header'ını BİLEREK set etmiyoruz. multipart gövdesi,
+       parçaları ayıran rastgele bir "boundary" dizesi içerir ve bu dize
+       header'da da bildirilmek zorundadır. Tarayıcı FormData gönderirken
+       ikisini birlikte üretir. Elle yazsaydık boundary'siz bir header
+       koymuş olurduk ve sunucu gövdeyi ayrıştıramazdı. */
+    const cevap = await fetch("/predict", {
+      method: "POST",
+      body: form,
+      signal: kontrol.signal
+    });
+
+    /* KRİTİK: fetch, 500 veya 400 gibi HTTP hata kodlarında reject ETMEZ.
+       Promise başarıyla çözülür, catch'e düşmez. Bu yüzden .ok kontrolü şart. */
+    if (!cevap.ok) {
+      hataGoster(await sunucuHataMesaji(cevap));
+      return;
+    }
+
+    sonucuGoster(await cevap.json());
+
+  } catch (hata) {
+    // Buraya ağ kopması, iptal ve bozuk JSON düşer.
+    if (hata.name === "AbortError") {
+      hataGoster("Sunucu çok uzun sürdü. Tekrar dener misin?");
+    } else {
+      hataGoster("Sunucuya ulaşamadım. İnternet bağlantını kontrol edip tekrar dener misin?");
+    }
+
+  } finally {
+    /* finally: başarıda da hatada da çalışır. Butonu try'ın sonunda
+       açsaydık, hata olduğunda sonsuza kadar kilitli kalırdı. */
+    clearTimeout(sayac);
+    butonKilitle(false);
+  }
+}
+
+/* Backend hataları Türkçe bir "detail" alanıyla gelir (413 -> "Dosya çok
+   büyük...", 400 -> "...okunabilir bir resim değil."). Onu göstermek
+   jenerik bir hata metninden çok daha faydalı. */
+async function sunucuHataMesaji(cevap) {
+  try {
+    const govde = await cevap.json();
+    if (govde && typeof govde.detail === "string") return govde.detail;
+  } catch (e) {
+    // Gövde JSON değilse aşağıdaki genel mesaja düşeriz.
+  }
+  return "Sunucu isteği işleyemedi (hata " + cevap.status + "). Tekrar dener misin?";
+}
+
+
+/* ---- 6. Sonucu ekrana bas ----------------------------------- */
+function sonucuGoster(veri) {
+  if (veri.durum === "basarili") {
+    basariliGoster(veri);
+  } else if (veri.durum === "emin_degil") {
+    eminDegilGoster(veri);
+  } else {
+    // Beklenmeyen bir durum değeri geldiyse sessizce yutma, hataya düş.
+    hataGoster("Sunucudan beklenmeyen bir cevap geldi. Tekrar dener misin?");
+  }
+}
+
+function basariliGoster(veri) {
+  /* Sağlıklı mı hasta mı? Kararı HAM İngilizce sınıf adına bakarak
+     veriyoruz, Türkçe metne değil: ham ad modelin sabit çıktısı,
+     Türkçe metin ise bir gün yeniden yazılabilir. */
+  const hamAd = veri.hastalik || "";
+  const saglikli = hamAd.toLowerCase().includes("healthy");
+
+  /* Türkçe adı backend hazır gönderiyor (predict.py -> turkce_ad).
+     Tabloyu burada tekrarlamıyoruz; tek doğruluk kaynağı orada.
+     Zincir, alan eksik gelse bile ekranda "undefined" yazmasını önler. */
+  hastalikAdi.textContent = veri.hastalik_tr || veri.hastalik || "Bilinmeyen sonuç";
+
+  sonucBasarili.classList.toggle("sonuc-saglikli", saglikli);
+  sonucBasarili.classList.toggle("sonuc-hastalik", !saglikli);
+
+  /* Renk körü kullanıcı için durum metinle de yazılı. Burada innerHTML
+     güvenli: iki metin de sabit, içinde sunucudan gelen veri yok. */
+  durumEtiketi.innerHTML = saglikli
+    ? '<span aria-hidden="true">&#10003;</span> Sağlıklı görünüyor'
+    : '<span aria-hidden="true">&#9888;</span> Hastalık belirtisi';
+
+  const guven = typeof veri.guven === "number" ? veri.guven : 0;
+  guvenDeger.textContent = "%" + guven;
+  // Bozuk bir değer barı taşırmasın diye 0-100 arasına sıkıştırıyoruz.
+  guvenDolgu.style.width = Math.max(0, Math.min(100, guven)) + "%";
+
+  durumGoster(onizlemeAlani, sonucBasarili);
+}
+
+function eminDegilGoster(veri) {
+  /* en_yakin_tahmin_tr alanını BİLEREK göstermiyoruz: sistem "tanıyamadım"
+     dedikten sonra bir tahmin fısıldarsa çiftçi onu cevap sanar. Eşiğin
+     0.95 seçilme gerekçesi de buydu — yanlış yönlendirmektense susmak. */
+  eminDegilMesaji.textContent = veri.mesaj
+    || "Bu yaprağı net tanıyamadım. Daha yakın ve net bir fotoğraf çeker misiniz?";
+
+  durumGoster(onizlemeAlani, sonucEminDegil);
+}
+
+/* textContent kullanıyoruz, innerHTML değil: mesaj sunucudan geliyor ve
+   içindeki bir HTML parçası tarayıcıda çalıştırılmamalı. */
+function hataGoster(mesaj) {
+  hataMesaji.textContent = mesaj;
+
+  // Fotoğraf seçilebilmişse önizlemeyi bırakalım; hangi kareye hata
+  // aldığını görsün. Resim olmayan dosyada önizleme zaten yok.
+  if (onizlemeURL) {
+    durumGoster(onizlemeAlani, sonucHata);
+  } else {
+    durumGoster(sonucHata);
+  }
+}
+
+
+/* ---- 7. Baştan başla ---------------------------------------- */
+function sifirla() {
+  onizlemeTemizle();
+
+  /* Bu satır kritik: input'un değerini silmezsek kullanıcı AYNI fotoğrafı
+     tekrar seçtiğinde değer değişmediği için change olayı hiç tetiklenmez
+     ve ekran donmuş gibi görünür. */
+  fotoSecici.value = "";
+
+  butonKilitle(false);
+  durumGoster();  // argümansız çağrı: hepsini gizle, Durum A'ya dön
+}
+
+// Üç buton da aynı sıfırlamayı yapar.
+["yeni-foto-basarili", "yeni-foto-emin-degil", "tekrar-dene"].forEach(id => {
+  document.getElementById(id).addEventListener("click", sifirla);
+});
+</script>
 </body>
 </html>

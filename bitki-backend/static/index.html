@@ -17,13 +17,22 @@
     /* Tasarım sistemi: renkler ve ölçüler tek yerde tanımlı.
        Bir rengi değiştirmek istersen sadece burayı düzenlersin. */
     :root {
-      --yesil:        #2e7d32;  /* ana renk (yaprak yeşili) */
+      /* Tarayıcıya hangi temalara hazır olduğumuzu söyler. Kaydırma çubuğu,
+         dosya seçici gibi TARAYICININ kendi çizdiği parçalar buna bakar;
+         yoksa karanlık modda sayfa koyu, kaydırma çubuğu bembeyaz kalır. */
+      color-scheme: light dark;
+
+      --yesil:        #2e7d32;  /* ana renk (yaprak yeşili) — buton ZEMİNİ */
+      --yesil-metin:  #2e7d32;  /* yeşilin YAZI olarak kullanıldığı hâli */
       --yesil-acik:   #43a047;  /* hover / vurgu */
       --arka-plan:    #f4f7f2;  /* sayfa zemini */
       --kart:         #ffffff;  /* kart zemini */
       --metin:        #1b2a1e;  /* ana metin */
       --metin-soluk:  #5a6b5d;  /* ikincil metin */
       --kenar:        #e2e8e0;  /* ince çizgiler */
+      --not-zemin:    #f7f9f6;  /* dürüstlük notunun zemini */
+      --gorsel-zemin: #eef1ed;  /* önizleme kutusunun boş kalan kısmı */
+      --ikincil-hover:#eef5ee;  /* çerçeveli butonun üstüne gelince */
 
       /* Durum renkleri: "serit" kartın sol kenarındaki kalın çizgi,
          "metin" ise etiket yazısının rengi. İkisi ayrı, çünkü turuncu
@@ -40,6 +49,48 @@
 
       --kose:  14px;                      /* yuvarlak köşe yarıçapı */
       --golge: 0 1px 3px rgba(0,0,0,.08); /* kartlarda hafif derinlik */
+    }
+
+    /* ----- KARANLIK MOD ---------------------------------------
+       Telefonun kendi ayarı koyu temadaysa devreye girer; ayrı bir
+       düğme yok. SADECE renk token'ları değişiyor — ölçü, düzen ve
+       HTML aynı kalıyor, o yüzden bozulacak bir şey yok.
+
+       Renkleri gelişigüzel koyulaştırmak yetmez: açık zeminde okunan
+       koyu yeşil, koyu zeminde okunmaz. Her metin rengini koyu kart
+       zemininde yeniden seçtim ve kontrast oranlarını hesapladım
+       (WCAG AA sınırı normal metin için 4.5:1). */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --arka-plan:    #121714;  /* siyah değil: tam siyah gece gözü yorar */
+        --kart:         #1b211d;
+        --metin:        #e8ece7;  /* kart üstünde 13.5:1 */
+        --metin-soluk:  #a3b0a5;  /* kart üstünde 7.3:1 */
+        --kenar:        #333c35;
+        --not-zemin:    #232a25;
+        --gorsel-zemin: #10150f;
+        --ikincil-hover:#202a22;
+
+        /* --yesil (buton ZEMİNİ) bilerek aynı kaldı: üstündeki beyaz yazı
+           5.1:1 veriyor ve koyu sayfada da buton olarak belli oluyor.
+           Ama aynı yeşil YAZI olarak koyu kartta 3.2:1'e düşüyor — AA'yı
+           geçmez. Bu yüzden yazı/çerçeve için açık tonu kullanıyoruz. */
+        --yesil-metin:  #81c784;  /* kart üstünde 8.2:1 */
+
+        /* Durum renkleri de aynı sebeple açık tonlara dönüyor.
+           Şeritler zemin olarak kullanıldığı için canlı kalıyor. */
+        --saglikli-serit:   #43a047;
+        --saglikli-metin:   #81c784;  /* 8.2:1 */
+        --hastalik-serit:   #ff9800;
+        --hastalik-metin:   #ffb74d;  /* 8.7:1 */
+        --emin-degil-serit: #78909c;
+        --emin-degil-metin: #b0bec5;  /* 8.1:1 */
+        --hata-serit:       #e57373;
+        --hata-metin:       #ef9a9a;  /* 7.3:1 */
+
+        /* Koyu zeminde hafif gölge görünmez; biraz güçlendiriyoruz. */
+        --golge: 0 1px 3px rgba(0,0,0,.5);
+      }
     }
 
     body {
@@ -77,7 +128,7 @@
     .baslik h1 {
       margin: 0 0 6px;
       font-size: 22px;
-      color: var(--yesil);
+      color: var(--yesil-metin);   /* yazı olduğu için --yesil değil */
     }
 
     .alt-baslik {
@@ -167,16 +218,22 @@
     }
 
     /* max-width:100% olmasa 4000px'lik telefon fotoğrafı sayfayı taşırırdı.
-       object-fit:contain görüntüyü kırpmadan kutuya sığdırır. */
+       object-fit:contain görüntüyü kırpmadan kutuya sığdırır.
+
+       Yükseklik neden SABİT (eskiden height:auto idi): tarayıcı fotoğrafın
+       boyutlarını ancak dosyayı çözdükten sonra bilir. O ana kadar kutunun
+       yüksekliği 0'dır, sonra bir anda 300px'e sıçrar ve altındaki her şeyi
+       aşağı iter -- tam da kullanıcının sonuca baktığı saniyede. Yeri baştan
+       ayırınca zıplama olmuyor. Dikey fotoğrafta boşta kalan yerler
+       --gorsel-zemin rengiyle doluyor, görüntü kırpılmıyor. */
     .onizleme {
       display: block;
       width: 100%;
       max-width: 100%;
-      max-height: 300px;
-      height: auto;
+      height: 240px;
       object-fit: contain;
       border-radius: 10px;
-      background: #eef1ed;
+      background: var(--gorsel-zemin);
     }
 
 
@@ -202,9 +259,10 @@
 
     @keyframes don { to { transform: rotate(360deg); } }
 
-    /* Hareketten rahatsız olan kullanıcılar için yavaşlat. */
+    /* Hareketten rahatsız olan kullanıcılar için yavaşlat / kapat. */
     @media (prefers-reduced-motion: reduce) {
       .spinner { animation-duration: 2.5s; }
+      .guven-dolgu { transition: none; }
     }
 
     .yukleniyor-metin { margin: 0; font-size: 17px; font-weight: 600; }
@@ -217,6 +275,11 @@
        renk ise yine anlam taşır. */
 
     .sonuc-kart { border-left: 6px solid var(--serit); }
+
+    /* Sonuç gelince JS odağı bu karta taşıyor (sebebi script'te yazılı).
+       Kart tıklanabilir bir öğe değil, o yüzden odak halkası çizmiyoruz --
+       halka burada "bas bana" anlamına gelir ve yanıltır. */
+    .sonuc-kart:focus { outline: none; }
 
     .sonuc-saglikli   { --serit: var(--saglikli-serit);   --etiket: var(--saglikli-metin); }
     .sonuc-hastalik   { --serit: var(--hastalik-serit);   --etiket: var(--hastalik-metin); }
@@ -262,8 +325,11 @@
     .guven-dolgu {
       height: 100%;
       background: var(--serit);
-      /* Genişliği 3c'de JS gerçek güven değerine göre yazacak. */
-      width: 87%;
+      /* Genişliği JS gerçek güven değerine göre yazar; 0'dan başlıyor ki
+         sonuç gelmeden önce yanıltıcı bir dolu bar görünmesin. */
+      width: 0;
+      /* Dolgu sıfırdan değerine doğru büyüyor: gözü sayıya çekiyor. */
+      transition: width .4s ease;
     }
 
     .sonuc-mesaji { margin: 0; font-size: 17px; }
@@ -274,7 +340,7 @@
     .durustluk-notu {
       margin: 18px 0 0;
       padding: 12px 14px;
-      background: #f7f9f6;
+      background: var(--not-zemin);
       border: 1px solid var(--kenar);
       border-radius: 10px;
       font-size: 15px;
@@ -293,8 +359,8 @@
       margin-top: 16px;
       padding: 14px 18px;
       background: var(--kart);
-      color: var(--yesil);
-      border: 2px solid var(--yesil);
+      color: var(--yesil-metin);
+      border: 2px solid var(--yesil-metin);
       border-radius: var(--kose);
       font-family: inherit;
       font-size: 17px;
@@ -303,7 +369,7 @@
       -webkit-tap-highlight-color: transparent;
     }
 
-    .ikincil-buton:hover { background: #eef5ee; }
+    .ikincil-buton:hover { background: var(--ikincil-hover); }
     .ikincil-buton:active { transform: scale(.98); }
     .ikincil-buton:focus-visible {
       outline: 3px solid var(--yesil-acik);
@@ -321,6 +387,24 @@
       color: var(--metin-soluk);
       text-align: center;
     }
+
+
+    /* ===== 10. SADECE EKRAN OKUYUCU İÇİN ======================== */
+    /* Gözle görünmez ama ekran okuyucunun okuduğu metin. display:none
+       KULLANAMAYIZ: o öğeyi erişilebilirlik ağacından da siler, yani
+       ekran okuyucu da görmez. Bu yüzden 1px'e küçültüp kırpıyoruz. */
+
+    .ekran-okuyucu {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      padding: 0;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+      border: 0;
+    }
   </style>
 </head>
 
@@ -332,6 +416,14 @@
     <h1>Bitki Hastalığı Tespiti</h1>
     <p class="alt-baslik">Yaprağın fotoğrafını çek, olası hastalığı öğren.</p>
   </header>
+
+  <!-- Ekran okuyucu duyuru bölgesi. Gizli bölümlerin üstündeki aria-live
+       güvenilir çalışmıyordu: metin bölüm GİZLİYKEN yazılıp sonra bölüm
+       açılıyordu, ekran okuyucu ise "zaten dolu doğmuş" bir bölgede
+       değişiklik görmediği için çoğu zaman hiçbir şey okumuyordu.
+       Bu bölge ise sayfa açıldığı andan itibaren hep DOM'da ve hep görünür
+       (sadece göze görünmez), bu yüzden içine yazılan her şey duyurulur. -->
+  <p class="ekran-okuyucu" id="durum-anonsu" role="status" aria-live="polite"></p>
 
   <main>
 
@@ -360,18 +452,21 @@
 
 
     <!-- ===== DURUM B - YÜKLENİYOR ===== -->
-    <!-- aria-live="polite": içerik değişince ekran okuyucu kullanıcıyı
-         sözünü kesmeden bilgilendirir. -->
-    <section class="kart yukleniyor-kart gizli" id="yukleniyor-alani" aria-live="polite">
+    <!-- Duyuru işi yukarıdaki #durum-anonsu bölgesinde; buradaki metin
+         sadece gözle görülen kısım. -->
+    <section class="kart yukleniyor-kart gizli" id="yukleniyor-alani">
       <div class="spinner" aria-hidden="true"></div>
       <p class="yukleniyor-metin">Analiz ediliyor...</p>
     </section>
 
 
     <!-- ===== DURUM C - SONUÇ: BAŞARILI ===== -->
-    <!-- İçindeki metinler ÖRNEKTİR; 3c'de JS gerçek cevapla değiştirecek.
-         Sınıfı da (sonuc-hastalik / sonuc-saglikli) JS belirleyecek. -->
-    <section class="kart sonuc-kart sonuc-hastalik gizli" id="sonuc-basarili" aria-live="polite">
+    <!-- İçindeki metinler ÖRNEKTİR; JS gerçek cevapla değiştirir.
+         Sınıfı da (sonuc-hastalik / sonuc-saglikli) JS belirler.
+         tabindex="-1": kart Tab sırasına GİRMEZ (tıklanacak bir şey değil)
+         ama JS odağı buraya taşıyabilir. Sonucun duyurulmasını ve ekranın
+         sonuca kaymasını bu sağlıyor. -->
+    <section class="kart sonuc-kart sonuc-hastalik gizli" id="sonuc-basarili" tabindex="-1">
       <p class="durum-etiketi" id="durum-etiketi">
         <span aria-hidden="true">⚠</span> Hastalık belirtisi
       </p>
@@ -382,7 +477,10 @@
         <span>Modelin güveni</span>
         <span class="guven-deger" id="guven-deger">%87</span>
       </div>
-      <div class="guven-bar">
+      <!-- aria-hidden: bar, yanındaki yüzdenin görsel karşılığından başka
+           bir şey söylemiyor. Gizlemezsek ekran okuyucu aynı bilgiyi iki
+           kere aktarmış olur. -->
+      <div class="guven-bar" aria-hidden="true">
         <div class="guven-dolgu" id="guven-dolgu"></div>
       </div>
 
@@ -398,7 +496,7 @@
 
 
     <!-- ===== DURUM C - SONUÇ: EMİN DEĞİL ===== -->
-    <section class="kart sonuc-kart sonuc-emin-degil gizli" id="sonuc-emin-degil" aria-live="polite">
+    <section class="kart sonuc-kart sonuc-emin-degil gizli" id="sonuc-emin-degil" tabindex="-1">
       <p class="durum-etiketi">
         <span aria-hidden="true">?</span> Emin değilim
       </p>
@@ -419,9 +517,13 @@
 
 
     <!-- ===== DURUM D - HATA ===== -->
-    <section class="kart sonuc-kart sonuc-hata gizli" id="sonuc-hata" aria-live="polite">
+    <section class="kart sonuc-kart sonuc-hata gizli" id="sonuc-hata" tabindex="-1">
+      <!-- Başlık JS tarafından yazılır. Eskiden sabit "Bağlantı sorunu"
+           yazıyordu, oysa bu kart "dosya resim değil", "10 MB'tan büyük",
+           "sunucu hata verdi" durumlarında da açılıyor -- kullanıcıyı boş
+           yere internetini kontrol etmeye gönderiyordu. -->
       <p class="durum-etiketi">
-        <span aria-hidden="true">✕</span> Bağlantı sorunu
+        <span aria-hidden="true">✕</span> <span id="hata-etiketi">Bir sorun oluştu</span>
       </p>
 
       <p class="sonuc-mesaji" id="hata-mesaji">
@@ -469,10 +571,16 @@ const guvenDeger      = document.getElementById("guven-deger");
 const guvenDolgu      = document.getElementById("guven-dolgu");
 const eminDegilMesaji = document.getElementById("emin-degil-mesaji");
 const hataMesaji      = document.getElementById("hata-mesaji");
+const hataEtiketi     = document.getElementById("hata-etiketi");
+const durumAnonsu     = document.getElementById("durum-anonsu");
 
 /* Sunucu hiç cevap vermezse çiftçi sonsuza kadar dönen spinnere bakmasın.
    Tahmin normalde 1-3 saniye; 60 saniye fazlasıyla cömert bir üst sınır. */
 const ZAMAN_ASIMI_MS = 60000;
+
+/* Telefonunda "hareketi azalt" ayarı açık olan kullanıcı için yumuşak
+   kaydırmayı anında kaydırmaya çeviriyoruz (CSS'teki aynı kuralın JS hâli). */
+const AZ_HAREKET = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /* Önizleme için ürettiğimiz geçici adres. Serbest bırakılması gerektiği
    için dışarıda tutuyoruz (bkz. onizlemeTemizle). */
@@ -496,6 +604,29 @@ function durumGoster(...gorunecekler) {
 function butonKilitle(kilitli) {
   fotoSecici.disabled = kilitli;
   anaButon.classList.toggle("pasif", kilitli);
+}
+
+/* Ekran okuyucuya tek satırlık durum bildirir (görsel bir etkisi yok). */
+function duyur(metin) {
+  durumAnonsu.textContent = metin;
+}
+
+/* Sonuç kartı açıldıktan sonra çağrılır ve iki sorunu birden çözer:
+
+   1) KAYDIRMA: Sayfa sırası başlık -> buton -> önizleme -> sonuç. 360x640
+      bir telefonda bu ilk üçü ekranı doldurur, yani sonuç kartı tam
+      katlamanın ALTINDA başlar. Çiftçi fotoğrafı gönderir, ekranda hâlâ
+      butonu ve fotoğrafını görür, "olmadı" sanıp tekrar basar.
+   2) DUYURU: Odak karta geçtiğinde ekran okuyucu kartın içeriğini okur.
+
+   preventScroll ile odağın kendi ani zıplamasını kapatıp kaydırmayı
+   kendimiz yumuşak yapıyoruz -- yoksa ekran iki kere oynuyor. */
+function sonucaGec(kart) {
+  /* "Analiz ediliyor" duyurusunu siliyoruz. Odak zaten kartın tamamını
+     okutacak; bölgeyi de doldurursak aynı bilgi iki kere söylenir. */
+  duyur("");
+  kart.focus({ preventScroll: true });
+  kart.scrollIntoView({ behavior: AZ_HAREKET ? "auto" : "smooth", block: "start" });
 }
 
 
@@ -526,6 +657,13 @@ fotoSecici.addEventListener("change", () => {
   // Kullanıcı dosya seçiciyi açıp vazgeçtiyse ekrana dokunma.
   if (!dosya) return;
 
+  /* Input'un değerini HEMEN temizliyoruz. Sebebi: "change" olayı değer
+     DEĞİŞİRSE tetiklenir. Kullanıcı sonuç ekranındayken üstteki butondan
+     AYNI fotoğrafı tekrar seçerse değer aynı kalır, olay hiç tetiklenmez
+     ve ekran donmuş görünür. Dosyanın kendisini yukarıda `dosya`
+     değişkenine aldık; değeri silmek onu etkilemez, gönderim bozulmaz. */
+  fotoSecici.value = "";
+
   onizlemeTemizle();  // önceki fotoğrafın izini sil
 
   /* İlk savunma hattı: resim olmayan dosyayı sunucuya hiç göndermeyiz.
@@ -533,7 +671,8 @@ fotoSecici.addEventListener("change", () => {
      kontrolü hız için, sunucu kontrolü güvenlik için — istemciye
      tek başına asla güvenilmez. */
   if (!dosya.type.startsWith("image/")) {
-    hataGoster("Bu bir resim dosyası değil. Lütfen bir yaprak fotoğrafı seç.");
+    hataGoster("Bu bir resim dosyası değil. Lütfen bir yaprak fotoğrafı seç.",
+               "Fotoğraf uygun değil");
     return;
   }
 
@@ -546,6 +685,7 @@ fotoSecici.addEventListener("change", () => {
 async function tahminGonder(dosya) {
   durumGoster(onizlemeAlani, yukleniyorAlani);
   butonKilitle(true);
+  duyur("Fotoğraf gönderildi, analiz ediliyor.");
 
   /* AbortController: sunucu takılıp kalırsa fetch sonsuza kadar bekler.
      Sayaç dolunca isteği iptal ediyoruz ki kullanıcının hep bir çıkışı olsun. */
@@ -573,7 +713,13 @@ async function tahminGonder(dosya) {
     /* KRİTİK: fetch, 500 veya 400 gibi HTTP hata kodlarında reject ETMEZ.
        Promise başarıyla çözülür, catch'e düşmez. Bu yüzden .ok kontrolü şart. */
     if (!cevap.ok) {
-      hataGoster(await sunucuHataMesaji(cevap));
+      /* Hatanın kaynağı gönderdiğimiz dosya mı, sunucu mu? Kullanıcıya
+         doğru yeri göstermek için başlığı buna göre seçiyoruz:
+         413 -> dosya çok büyük, 400/415 -> okunamayan/desteklenmeyen dosya,
+         422 -> alan adı yanlış. Kalanı (500 vb.) sunucu tarafı. */
+      const dosyaHatasi = [400, 413, 415, 422].includes(cevap.status);
+      hataGoster(await sunucuHataMesaji(cevap),
+                 dosyaHatasi ? "Fotoğraf uygun değil" : "Sunucu sorunu");
       return;
     }
 
@@ -582,9 +728,10 @@ async function tahminGonder(dosya) {
   } catch (hata) {
     // Buraya ağ kopması, iptal ve bozuk JSON düşer.
     if (hata.name === "AbortError") {
-      hataGoster("Sunucu çok uzun sürdü. Tekrar dener misin?");
+      hataGoster("Sunucu çok uzun sürdü. Tekrar dener misin?", "Cevap gelmedi");
     } else {
-      hataGoster("Sunucuya ulaşamadım. İnternet bağlantını kontrol edip tekrar dener misin?");
+      hataGoster("Sunucuya ulaşamadım. İnternet bağlantını kontrol edip tekrar dener misin?",
+                 "Bağlantı sorunu");
     }
 
   } finally {
@@ -617,7 +764,8 @@ function sonucuGoster(veri) {
     eminDegilGoster(veri);
   } else {
     // Beklenmeyen bir durum değeri geldiyse sessizce yutma, hataya düş.
-    hataGoster("Sunucudan beklenmeyen bir cevap geldi. Tekrar dener misin?");
+    hataGoster("Sunucudan beklenmeyen bir cevap geldi. Tekrar dener misin?",
+               "Beklenmeyen cevap");
   }
 }
 
@@ -642,12 +790,16 @@ function basariliGoster(veri) {
     ? '<span aria-hidden="true">&#10003;</span> Sağlıklı görünüyor'
     : '<span aria-hidden="true">&#9888;</span> Hastalık belirtisi';
 
+  /* Backend "97.3" gibi ondalıklı gönderiyor. Çiftçi için virgülden sonrası
+     bilgi değil gürültü: tam sayıya yuvarlayıp gösteriyoruz. Bar ise
+     yuvarlanmamış değeri kullanıyor, çünkü orada tek hane fark etmez. */
   const guven = typeof veri.guven === "number" ? veri.guven : 0;
-  guvenDeger.textContent = "%" + guven;
+  guvenDeger.textContent = "%" + Math.round(guven);
   // Bozuk bir değer barı taşırmasın diye 0-100 arasına sıkıştırıyoruz.
   guvenDolgu.style.width = Math.max(0, Math.min(100, guven)) + "%";
 
   durumGoster(onizlemeAlani, sonucBasarili);
+  sonucaGec(sonucBasarili);
 }
 
 function eminDegilGoster(veri) {
@@ -658,11 +810,16 @@ function eminDegilGoster(veri) {
     || "Bu yaprağı net tanıyamadım. Daha yakın ve net bir fotoğraf çeker misiniz?";
 
   durumGoster(onizlemeAlani, sonucEminDegil);
+  sonucaGec(sonucEminDegil);
 }
 
 /* textContent kullanıyoruz, innerHTML değil: mesaj sunucudan geliyor ve
-   içindeki bir HTML parçası tarayıcıda çalıştırılmamalı. */
-function hataGoster(mesaj) {
+   içindeki bir HTML parçası tarayıcıda çalıştırılmamalı.
+
+   baslik: kartın üst satırı. Varsayılanı nötr tutuyoruz ki çağıran yer
+   başlık vermeyi unutsa bile yanlış bir şey yazmayalım. */
+function hataGoster(mesaj, baslik = "Bir sorun oluştu") {
+  hataEtiketi.textContent = baslik;
   hataMesaji.textContent = mesaj;
 
   // Fotoğraf seçilebilmişse önizlemeyi bırakalım; hangi kareye hata
@@ -672,6 +829,8 @@ function hataGoster(mesaj) {
   } else {
     durumGoster(sonucHata);
   }
+
+  sonucaGec(sonucHata);
 }
 
 
@@ -679,13 +838,27 @@ function hataGoster(mesaj) {
 function sifirla() {
   onizlemeTemizle();
 
-  /* Bu satır kritik: input'un değerini silmezsek kullanıcı AYNI fotoğrafı
-     tekrar seçtiğinde değer değişmediği için change olayı hiç tetiklenmez
-     ve ekran donmuş gibi görünür. */
+  /* Güvenlik ağı: değer artık fotoğraf seçilir seçilmez temizleniyor
+     (bkz. change işleyicisi), ama input'un her durumda boş kalmasını
+     garanti etmek ucuz. Boş kalmazsa aynı fotoğraf ikinci kez seçildiğinde
+     change olayı tetiklenmez ve ekran donmuş görünür. */
   fotoSecici.value = "";
 
   butonKilitle(false);
   durumGoster();  // argümansız çağrı: hepsini gizle, Durum A'ya dön
+
+  /* Bar bir sonraki sonuçta yine sıfırdan büyüsün; yoksa önceki yüzdeden
+     devam ediyormuş gibi görünür. */
+  guvenDolgu.style.width = "0%";
+  duyur("");
+
+  /* Odağı geri almak ZORUNLU: basılan "Yeni Fotoğraf" butonu bu satırların
+     ardından display:none oluyor. Odak görünmez bir öğenin üstünde kalırsa
+     tarayıcı onu <body>'ye düşürür ve klavye/ekran okuyucu kullanıcısı
+     sayfada yerini kaybeder. Odağı tek anlamlı yere, fotoğraf seçiciye
+     veriyoruz. preventScroll: aşağıdaki yumuşak kaydırmayla çakışmasın. */
+  fotoSecici.focus({ preventScroll: true });
+  window.scrollTo({ top: 0, behavior: AZ_HAREKET ? "auto" : "smooth" });
 }
 
 // Üç buton da aynı sıfırlamayı yapar.

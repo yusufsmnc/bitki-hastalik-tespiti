@@ -223,3 +223,6 @@ test.jpg
 
 # Proje: yerel etiketli test veri seti (git'e girmemeli)
 plantdoc_split/
+
+# Proje: yerel çalışma notu (arayüz şartnamesi) — depoda tutulmuyor
+FRONTEND.md

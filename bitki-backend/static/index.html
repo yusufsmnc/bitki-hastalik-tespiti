@@ -116,7 +116,12 @@
     h1, h2, p { overflow-wrap: break-word; }
 
     /* 3c'de JS bu sınıfı ekleyip çıkararak durumlar arasında geçiş yapacak. */
-    .gizli { display: none; }
+    /* !important şart: .yukleniyor-kart gibi başka kurallar da "display"
+       tanımlıyor ve aynı ağırlıkta (ikisi de tek sınıf). CSS eşitlikte SONRA
+       yazılanı seçer; .yukleniyor-kart aşağıda olduğu için .gizli'yi eziyor ve
+       "Analiz ediliyor" kartı hiç gizlenemiyordu. !important bu yarışı bitirir
+       ve ileride eklenecek display kuralları da bu sınıfı bozamaz. */
+    .gizli { display: none !important; }
 
 
     /* ===== 2. BAŞLIK ============================================ */

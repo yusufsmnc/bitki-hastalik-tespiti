@@ -96,9 +96,9 @@ merkezindeki fikir: tek başına laboratuvar verisi tarlada işe yaramıyor.
 | **PlantDoc** | Gerçek tarla | Dağınık arka plan, doğal ışık. Eşik ölçümü de bu setle yapıldı. |
 | **PlantWild** | Gerçek tarla | Ek tarla çeşitliliği. |
 
-### ⚠️ Lisans uyarısı
+### Lisans uyarısı
 
-**PlantWild veri seti CC-BY-NC-ND lisanslıdır: ticari kullanım yasaktır.**
+⚠️ **PlantWild veri seti CC-BY-NC-ND lisanslıdır: ticari kullanım yasaktır.**
 
 Bu model PlantWild verisiyle eğitildiği için, eğitilmiş ağırlıklar da bu
 kısıtın etkisi altındadır. Projeyi ticari bir ürüne dönüştürmeyi
@@ -450,7 +450,7 @@ servis de Python olunca model ile arasında hiçbir çeviri katmanı gerekmiyor.
 
 Bu depodaki **kod** eğitim amaçlıdır. Ancak eğitilmiş model, CC-BY-NC-ND
 lisanslı PlantWild verisiyle eğitildiği için **ticari kullanıma kapalıdır**
-(bkz. [Lisans uyarısı](#️-lisans-uyarısı)).
+(bkz. [Lisans uyarısı](#lisans-uyarısı)).
 
 Sistemin verdiği sonuçlar bir ön değerlendirmedir, kesin tanı değildir.
 Tarımsal karar almadan önce bir ziraat uzmanına danışın.

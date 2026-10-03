@@ -232,3 +232,59 @@ uvicorn main:app --host 0.0.0.0
 Bilgisayarın yerel IP'sini öğrenip (`ipconfig` / `ifconfig`) telefonda
 `http://192.168.x.x:8000` adresini açın. Güvenlik duvarı ilk seferde izin
 isteyebilir.
+
+---
+
+## API
+
+| Adres | Yöntem | Açıklama |
+|---|---|---|
+| `/` | GET | Telefon uyumlu web arayüzü |
+| `/health` | GET | Sunucu ayakta mı — `{"durum": "calisiyor"}` |
+| `/predict` | POST | Fotoğraf yükle, tahmin al |
+| `/docs` | GET | FastAPI'nin otomatik ürettiği API arayüzü |
+| `/static/...` | GET | Arayüz dosyaları |
+
+### `/predict` kullanımı
+
+```bash
+curl -X POST -F "file=@yaprak.jpg" http://127.0.0.1:8000/predict
+```
+
+Model yeterince eminse (`guven` ≥ %95):
+
+```json
+{
+  "durum": "basarili",
+  "hastalik": "Tomato_Leaf_Mold",
+  "hastalik_tr": "Domates - Yaprak küfü",
+  "guven": 97.3
+}
+```
+
+Emin değilse:
+
+```json
+{
+  "durum": "emin_degil",
+  "mesaj": "Bu yaprağı net tanıyamadım. Daha yakın ve net bir fotoğraf çeker misiniz?",
+  "en_yakin_tahmin": "Tomato_Leaf_Mold",
+  "en_yakin_tahmin_tr": "Domates - Yaprak küfü",
+  "guven": 92.2
+}
+```
+
+`en_yakin_tahmin` alanları bilgi amaçlıdır ve **arayüzde bilerek
+gösterilmez**: sistem "tanıyamadım" dedikten sonra bir tahmin fısıldarsa
+kullanıcı onu cevap sanar.
+
+### Hata kodları
+
+| Kod | Anlamı |
+|---|---|
+| 400 | Dosya okunabilir bir resim değil (bozuk, yarım veya resim olmayan) |
+| 413 | Dosya 10 MB sınırını aşıyor |
+| 422 | `file` alanı hiç gönderilmemiş |
+
+Hatalar Türkçe bir `detail` alanıyla döner; arayüz bu metni doğrudan
+kullanıcıya gösterir.

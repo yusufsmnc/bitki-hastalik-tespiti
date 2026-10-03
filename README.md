@@ -82,3 +82,85 @@ Projenin bu noktaya kadar çözdüğü somut problemler:
 - **Model dosyası olmadan çalışan test altyapısı yazdık.** Model git'te yok
   (45 MB), ama CI yine de her push'ta 41 testi çalıştırıyor.
 - **Sonuçları abartmadan raporladık.** Yukarıdaki tablo bunun kanıtı.
+
+---
+
+## Veri setleri
+
+Model üç ayrı veri setinin birleşimiyle eğitildi. Bu birleştirme projenin
+merkezindeki fikir: tek başına laboratuvar verisi tarlada işe yaramıyor.
+
+| Veri seti | Tür | Rolü |
+|---|---|---|
+| **PlantVillage** | Laboratuvar | Temiz, bol örnekli taban. Düz zeminde tek yaprak. |
+| **PlantDoc** | Gerçek tarla | Dağınık arka plan, doğal ışık. Eşik ölçümü de bu setle yapıldı. |
+| **PlantWild** | Gerçek tarla | Ek tarla çeşitliliği. |
+
+### ⚠️ Lisans uyarısı
+
+**PlantWild veri seti CC-BY-NC-ND lisanslıdır: ticari kullanım yasaktır.**
+
+Bu model PlantWild verisiyle eğitildiği için, eğitilmiş ağırlıklar da bu
+kısıtın etkisi altındadır. Projeyi ticari bir ürüne dönüştürmeyi
+düşünüyorsanız modeli PlantWild olmadan yeniden eğitmeniz gerekir.
+
+Diğer veri setlerinin lisans koşulları için kendi kaynaklarına bakın; bu
+depoda veri seti dosyası bulunmuyor.
+
+---
+
+## Model
+
+- **Mimari:** ResNet18 (torchvision)
+- **Yöntem:** Transfer learning + fine-tuning
+- **Çerçeve:** PyTorch
+- **Çıktı katmanı:** 15 sınıf
+- **Çıkarım (inference):** CPU. GPU gerekmez — tahmin saniyeler değil,
+  milisaniyeler sürüyor.
+
+> **Not:** Eğitim bu depoda yapılmıyor. Depo yalnızca *eğitilmiş modeli
+> kullanan* servisi içerir; eğitim script'i burada yok. `best_model_v3.pth`
+> (45 MB) ve `class_names.json` boyutları nedeniyle git'e dahil edilmedi
+> (bkz. [Kurulum](#kurulum)).
+
+### Ön işlemede kritik kural
+
+Tahmin sırasındaki görüntü ön işlemesi, eğitimdekiyle **birebir** aynı olmak
+zorundadır:
+
+```python
+transforms.Resize((224, 224))
+transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+```
+
+Bu değerler farklı olursa model gözle görülür bir hata vermeden saçmalar —
+en sık yapılan deploy hatasıdır. Bu yüzden değerleri bir test sabitliyor
+(`tests/test_predict.py::test_on_isleme_egitimdekiyle_ayni_kalmali`).
+
+---
+
+## Tanınan sınıflar (15)
+
+Model sınıf adlarını İngilizce (PlantVillage adlandırması) üretir; arayüzde
+Türkçe karşılıkları gösterilir.
+
+| Ürün | Sınıf | Türkçe |
+|---|---|---|
+| Biber | `Pepper__bell___Bacterial_spot` | Biber - Bakteriyel leke |
+| Biber | `Pepper__bell___healthy` | Biber - Sağlıklı |
+| Patates | `Potato___Early_blight` | Patates - Erken yanıklık |
+| Patates | `Potato___Late_blight` | Patates - Geç yanıklık (mildiyö) |
+| Patates | `Potato___healthy` | Patates - Sağlıklı |
+| Domates | `Tomato_Bacterial_spot` | Domates - Bakteriyel leke |
+| Domates | `Tomato_Early_blight` | Domates - Erken yanıklık |
+| Domates | `Tomato_Late_blight` | Domates - Geç yanıklık (mildiyö) |
+| Domates | `Tomato_Leaf_Mold` | Domates - Yaprak küfü |
+| Domates | `Tomato_Septoria_leaf_spot` | Domates - Septoria yaprak lekesi |
+| Domates | `Tomato_Spider_mites_Two_spotted_spider_mite` | Domates - Kırmızı örümcek |
+| Domates | `Tomato__Target_Spot` | Domates - Hedef leke |
+| Domates | `Tomato__Tomato_YellowLeaf__Curl_Virus` | Domates - Sarı yaprak kıvırcıklık virüsü |
+| Domates | `Tomato__Tomato_mosaic_virus` | Domates - Mozaik virüsü |
+| Domates | `Tomato_healthy` | Domates - Sağlıklı |
+
+Listede olmayan bir sınıf adı gelirse (örn. model değişirse) uygulama
+çökmez, ham İngilizce adı gösterir.

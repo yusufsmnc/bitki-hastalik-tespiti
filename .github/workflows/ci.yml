@@ -1,6 +1,6 @@
 name: CI
 
-# Her push'ta ve her pull request'te testleri çalıştır.
+# Her push'ta ve her pull request'te boru hattının tamamı çalışır.
 on:
   push:
     branches: ["**"]
@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # --- Aşama 1: kaynak kodu al -------------------------------------
       - name: Depoyu indir
         uses: actions/checkout@v7
 
@@ -23,6 +24,20 @@ jobs:
           python-version: "3.14"
           cache: pip
 
+      # --- Aşama 2: depo hijyeni --------------------------------------
+      # Testlerden ÖNCE çalışır: büyük/gizli bir dosya yanlışlıkla
+      # commit'lenmişse bunu öğrenmek için 10 dakikalık kurulumu beklemeye
+      # gerek yok. (CLAUDE.md kısıt 2: *.pth, venv/, __pycache__ git'e girmemeli.)
+      - name: Depoya girmemesi gereken dosyaları denetle
+        run: |
+          echo "git'in takip ettiği dosyalar taranıyor..."
+          if git ls-files | grep -E '\.pth$|(^|/)venv/|__pycache__/|\.pyc$'; then
+            echo "::error::Yukarıdaki dosyalar depoya girmemeli. .gitignore'u kontrol et."
+            exit 1
+          fi
+          echo "Temiz: model ağırlıkları, venv ve cache dosyaları depoda yok."
+
+      # --- Aşama 3: bağımlılıklar -------------------------------------
       # PyTorch'un varsayılan (PyPI) sürümü Linux'ta CUDA paketlerini de
       # indirir (~2 GB). CI'da GPU yok, tahminler CPU'da yapılıyor; bu yüzden
       # PyTorch'u önce resmi CPU deposundan kuruyoruz. Sonraki adımdaki
@@ -37,7 +52,31 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
 
+      # --- Aşama 4: hızlı testler -------------------------------------
       # Testler gerçek modele bağlı değil: tests/conftest.py aynı mimaride
       # sahte bir model üretiyor (bkz. o dosyadaki açıklama).
-      - name: Testleri çalıştır
-        run: pytest -v
+      #
+      # Önce hızlı olanlar: saniyeler sürer, hataların çoğunu burada yakalarız.
+      #   test_predict.py  -> tahmin fonksiyonunun sözleşmesi ve güven eşiği
+      #   test_main.py     -> endpoint'ler (TestClient ile, sunucu başlatmadan)
+      #   test_sozlesme.py -> arayüz (index.html) ile backend alan adları uyuşuyor mu
+      - name: Birim ve API testleri
+        run: pytest -v -m "not e2e"
+
+      # --- Aşama 5: uçtan uca test ------------------------------------
+      # Burada uvicorn GERÇEKTEN ayrı bir süreç olarak başlatılır ve istekler
+      # ağ üzerinden atılır. Önceki adımın yakalayamayacağı şeyleri yakalar:
+      # uygulama ayağa kalkıyor mu, model açılışta yükleniyor mu, static/
+      # klasörü doğru bağlanmış mı, port dinleniyor mu.
+      - name: Uçtan uca testler (gerçek sunucu)
+        run: pytest -v -m e2e
+
+      # --- Aşama 6: özet ----------------------------------------------
+      # Boru hattı buraya geldiyse yukarıdaki her adım yeşil demektir.
+      - name: Özet
+        run: |
+          echo "### Boru hattı tamam" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Depo hijyeni denetlendi (model/venv/cache depoda yok)" >> $GITHUB_STEP_SUMMARY
+          echo "- Birim ve API testleri geçti" >> $GITHUB_STEP_SUMMARY
+          echo "- Uçtan uca testler geçti (gerçek uvicorn sunucusu)" >> $GITHUB_STEP_SUMMARY

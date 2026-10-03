@@ -164,3 +164,71 @@ Türkçe karşılıkları gösterilir.
 
 Listede olmayan bir sınıf adı gelirse (örn. model değişirse) uygulama
 çökmez, ham İngilizce adı gösterir.
+
+---
+
+## Kurulum
+
+### Gereksinimler
+
+- Python 3.14 (CI bu sürümle çalışıyor; 3.11+ muhtemelen sorunsuzdur)
+- Model dosyaları: `best_model_v3.pth` ve `class_names.json`
+
+### 1. Model dosyalarını edinin
+
+**Bu iki dosya git deposunda yoktur** — `best_model_v3.pth` 45 MB olduğu için
+`.gitignore`'dadır. Dosyaları proje sahibinden edinip `bitki-backend/`
+klasörünün içine koyun:
+
+```
+bitki-backend/
+├── best_model_v3.pth
+└── class_names.json
+```
+
+### 2. Sanal ortam ve bağımlılıklar
+
+```bash
+cd bitki-backend
+python -m venv venv
+
+# Windows (PowerShell):
+.\venv\Scripts\Activate.ps1
+# macOS / Linux:
+source venv/bin/activate
+
+pip install -r ../requirements.txt
+```
+
+CPU'da çalıştırmak yeterli olduğu için PyTorch'un CPU sürümü de kullanılabilir;
+bu, ~2 GB'lık CUDA paketlerini indirmekten kurtarır:
+
+```bash
+pip install torch==2.14.0 torchvision==0.29.0 \
+  --index-url https://download.pytorch.org/whl/cpu
+```
+
+### 3. Sunucuyu başlatın
+
+```bash
+# bitki-backend/ klasöründeyken:
+uvicorn main:app --reload
+```
+
+`main:app` komutu `main.py`'yi *import ederek* bulur, bu yüzden komutun
+`bitki-backend/` içinden çalıştırılması gerekir. `--reload` yalnızca
+geliştirme içindir.
+
+Arayüz: **http://127.0.0.1:8000**
+
+### Telefondan erişim
+
+Aynı Wi-Fi ağındaki telefondan test etmek için sunucuyu tüm arayüzlere açın:
+
+```bash
+uvicorn main:app --host 0.0.0.0
+```
+
+Bilgisayarın yerel IP'sini öğrenip (`ipconfig` / `ifconfig`) telefonda
+`http://192.168.x.x:8000` adresini açın. Güvenlik duvarı ilk seferde izin
+isteyebilir.

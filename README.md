@@ -288,3 +288,88 @@ kullanıcı onu cevap sanar.
 
 Hatalar Türkçe bir `detail` alanıyla döner; arayüz bu metni doğrudan
 kullanıcıya gösterir.
+
+---
+
+## Nasıl çalışır
+
+```
+Telefon/tarayıcı                FastAPI (main.py)              predict.py
+─────────────────               ─────────────────              ──────────
+fotoğraf seç      ──POST──►     boyut kontrolü (10 MB)
+                                EXIF yönünü düzelt
+                                bozuksa 400 döndür
+                                                   ──görüntü──►  224x224 + normalize
+                                                                 ResNet18 → softmax
+                                                                 güven < %95 ?
+                                                   ◄──sözlük───  "emin_degil" / "basarili"
+sonucu göster     ◄──JSON──
+```
+
+Tasarımın üç önemli ayrıntısı:
+
+1. **Model uygulama başlarken bir kere yüklenir**, her istekte değil. Her
+   istekte yüklemek tahmini saniyelerce yavaşlatırdı.
+2. **EXIF yönü düzeltilir.** Telefonlar fotoğrafı döndürmek yerine dosyaya
+   "bu resim dönük" etiketi yazar. Uygulanmazsa model yan yatmış bir yaprak görür.
+3. **`/predict` `async def` değil, düz `def`.** Tahmin CPU'yu meşgul eden
+   senkron bir iş; `async` içinde olsaydı tahmin bitene kadar sunucu başka
+   hiçbir isteğe cevap veremezdi.
+
+---
+
+## Proje yapısı
+
+```
+bitki-hastalik-tespiti/
+├── README.md
+├── requirements.txt            uygulama bağımlılıkları
+├── requirements-dev.txt        pytest, httpx
+├── pytest.ini
+├── .github/workflows/ci.yml    8 aşamalı CI boru hattı
+├── tests/
+│   ├── conftest.py             CI için sahte model üretir
+│   ├── test_predict.py         tahmin fonksiyonu + güven eşiği
+│   ├── test_main.py            endpoint'ler (TestClient ile)
+│   ├── test_sozlesme.py        arayüz ↔ backend alan adları
+│   └── test_e2e.py             gerçek uvicorn sunucusuyla uçtan uca
+└── bitki-backend/
+    ├── main.py                 FastAPI uygulaması
+    ├── predict.py              model yükleme + tahmin
+    ├── tune_threshold.py       güven eşiği ölçüm script'i
+    ├── static/index.html       telefon uyumlu arayüz
+    ├── best_model_v3.pth       (git'te YOK)
+    └── class_names.json        (git'te YOK)
+```
+
+---
+
+## Testler
+
+```bash
+pip install -r requirements-dev.txt
+
+pytest                  # 41 test
+pytest -m "not e2e"     # 29 hızlı test
+pytest -m e2e           # 12 uçtan uca test (gerçek sunucu başlatır)
+```
+
+Testler **gerçek modele bağlı değildir.** `tests/conftest.py` aynı mimaride
+(ResNet18, aynı sınıf sayısı) rastgele ağırlıklı sahte bir model üretip
+ortam değişkenleriyle `predict.py`'ye gösterir. Ölçülen şey modelin isabeti
+değil — rastgele ağırlıkla bu zaten ölçülemez — kodun doğru çalışmasıdır.
+
+Dört test dosyası dört ayrı soruyu yanıtlar:
+
+| Dosya | Soru |
+|---|---|
+| `test_predict.py` | Tahmin fonksiyonu sözleşmeye uyuyor mu? Eşik mantığı doğru mu? |
+| `test_main.py` | Endpoint'ler doğru kodları ve gövdeleri döndürüyor mu? |
+| `test_sozlesme.py` | Arayüzün okuduğu alanlar backend'in gönderdikleriyle uyuşuyor mu? |
+| `test_e2e.py` | Uygulama gerçekten ayağa kalkıyor ve ağ üzerinden cevap veriyor mu? |
+
+### CI
+
+Her push ve pull request'te GitHub Actions 8 aşamayı çalıştırır: depo
+hijyeni denetimi (model/venv/cache yanlışlıkla commit'lenmiş mi), bağımlılık
+kurulumu, hızlı testler, sonra uçtan uca testler. Tipik süre ~1 dakika.

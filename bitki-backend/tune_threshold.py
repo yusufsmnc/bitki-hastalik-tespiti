@@ -6,10 +6,13 @@ Ne yapar:
   eşikleri için bir tablo basar.
 
 Neden gerekli:
-  predict.py'deki GUVEN_ESIGI şu an tahminî bir değer. Eşiği yükseltmek
-  "emin" dediğimiz tahminlerin isabetini artırır ama daha çok görüntüyü
-  "emin değil"e atar (kapsama kaybı). Bu iki şey arasındaki dengeyi
-  gözle görmeden seçmek keyfi olur -- tablo tam bunun için.
+  Eşiği yükseltmek "emin" dediğimiz tahminlerin isabetini artırır ama daha
+  çok görüntüyü "emin değil"e atar (kapsama kaybı). Bu iki şey arasındaki
+  dengeyi gözle görmeden seçmek keyfi olur -- tablo tam bunun için.
+
+  predict.py'deki GUVEN_ESIGI (0.95) bu script'le, 2026-09-29'da ölçülerek
+  seçildi. Script hâlâ gerekli: model veya veri değişince ölçüm tekrarlanmalı,
+  ve README'deki tablonun yeniden üretilebilir olması gerekiyor.
 
 Nasıl çalıştırılır (bitki-backend/venv aktifken):
   python bitki-backend/tune_threshold.py
@@ -25,7 +28,11 @@ from PIL import Image
 from predict import BURASI, class_names, model, transform
 
 TEST_KLASORU = BURASI / "plantdoc_split" / "test"
-ESIKLER = [0.50, 0.60, 0.70, 0.80, 0.90]
+# Ölçülecek eşikler. 0.95 ve 0.97, predict.py ile README'de belgelenen
+# tablonun satırları -- listede olmazlarsa o tablo yeniden üretilemez.
+# Düşük eşikler (0.50-0.70) seçilmek için değil, eğrinin gidişatını
+# göstermek için duruyor: isabetin eşikle nasıl arttığı ancak böyle görülür.
+ESIKLER = [0.50, 0.60, 0.70, 0.80, 0.90, 0.95, 0.97]
 GORUNTU_UZANTILARI = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
 

@@ -866,10 +866,30 @@ function sifirla() {
   window.scrollTo({ top: 0, behavior: AZ_HAREKET ? "auto" : "smooth" });
 }
 
-// Üç buton da aynı sıfırlamayı yapar.
-["yeni-foto-basarili", "yeni-foto-emin-degil", "tekrar-dene"].forEach(id => {
-  document.getElementById(id).addEventListener("click", sifirla);
+/* "Yeni Fotoğraf": önce sıfırla, sonra dosya seçiciyi DOĞRUDAN aç.
+   Kullanıcı sonucu gördükten sonra zaten yeni bir fotoğraf seçmek istiyor;
+   onu en başa gönderip bir kez daha butona bastırmak fazladan bir adım.
+
+   fotoSecici.click() tarayıcıda yalnızca gerçek bir kullanıcı hareketinin
+   içinden çağrılırsa dosya penceresini açar -- güvenlik gereği sayfalar
+   kendiliğinden dosya penceresi açamaz. Burada bir "click" işleyicisinin
+   içindeyiz, yani şart sağlanıyor.
+
+   Sıra önemli: sifirla() butonun kilidini açıyor (butonKilitle(false)).
+   Devre dışı bir input'a click() çağırmak hiçbir şey yapmazdı. */
+function yeniFotograf() {
+  sifirla();           // önizlemeyi ve eski sonucu temizler, kilidi açar
+  fotoSecici.click();  // dosya penceresi hemen açılır
+}
+
+// Sonuç kartlarındaki iki buton doğrudan yeni fotoğraf seçtirir.
+["yeni-foto-basarili", "yeni-foto-emin-degil"].forEach(id => {
+  document.getElementById(id).addEventListener("click", yeniFotograf);
 });
+
+/* "Tekrar Dene" bilerek sadece başa dönüyor: hata ekranında kullanıcı önce
+   ne olduğunu okumak isteyebilir, yüzüne dosya penceresi açmak aceleci olur. */
+document.getElementById("tekrar-dene").addEventListener("click", sifirla);
 </script>
 </body>
 </html>

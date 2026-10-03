@@ -373,3 +373,84 @@ Dört test dosyası dört ayrı soruyu yanıtlar:
 Her push ve pull request'te GitHub Actions 8 aşamayı çalıştırır: depo
 hijyeni denetimi (model/venv/cache yanlışlıkla commit'lenmiş mi), bağımlılık
 kurulumu, hızlı testler, sonra uçtan uca testler. Tipik süre ~1 dakika.
+
+---
+
+## Yol haritası
+
+Önceliklendirilmiş liste — üsttekiler projenin güvenilirliği için daha kritik.
+
+### 1. Eşiği dürüst biçimde yeniden ölç (en öncelikli)
+
+Mevcut eşik (0.95), isabet rakamlarının ölçüldüğü **aynı** test setine
+bakılarak seçildi. Bu, raporlanan %84.6 isabeti iyimser kılıyor. Doğrusu:
+veriyi eğitim / doğrulama / test diye üçe ayırmak, eşiği doğrulama setinde
+seçmek ve test setinde **bir kez** ölçmek. Bu yapılana kadar isabet rakamına
+temkinli yaklaşılmalı.
+
+### 2. Kapsam dışı yaprakları reddet
+
+Model şu an 15 sınıftan birini seçmek *zorunda*. Bir fasulye yaprağı
+gösterildiğinde "bu benim bilmediğim bir şey" diyemiyor; tek koruma güven
+eşiği ve bu yeterli değil. Yapılabilecekler: eğitime "diğer/bilinmeyen"
+sınıfı eklemek, out-of-distribution tespiti, ya da önce "bu bir yaprak mı"
+diye bakan ikinci bir model.
+
+### 3. Tarla doğruluğunu yükselt (%62 → ?)
+
+Asıl darboğaz bu. Denenebilecekler: daha agresif veri artırma (augmentation)
+— arka plan değiştirme, gölge/bulanıklık ekleme; daha fazla gerçek tarla
+verisi; daha güçlü bir omurga (ResNet50, EfficientNet); yaprağı arka plandan
+ayıran bir ön adım (segmentasyon).
+
+### 4. Daha fazla ürün ve hastalık
+
+Şu an 3 ürün var. Türkiye'de yaygın diğer ürünler (buğday, mısır, üzüm,
+elma) eklenebilir. Her yeni ürün yeni veri ve yeniden eğitim demek.
+
+### 5. Kullanıcı deneyimi
+
+- İlk 3 tahmini güvenleriyle göstermek (tek cevap yerine)
+- Tespit edilen hastalık için kısa bilgi ve mücadele önerisi
+- Çevrimdışı çalışma (PWA) — tarlada internet zayıf olabilir
+- Fotoğraf çekerken canlı yönlendirme ("yaprağa yaklaş", "gölgeden çık")
+
+### 6. Dağıtım (Faz 5)
+
+Hugging Face Spaces / Render / Railway üzerine kurulum. Yapılması gerekenler:
+model dosyasını platforma ayrıca yüklemek (git'te yok) ve **CORS'u
+kısıtlamak** — şu an `allow_origins=["*"]` geliştirme ayarıdır, production'da
+yalnızca kendi alan adına izin verilmeli.
+
+### 7. Saha testi
+
+Hiçbir rakam, gerçek bir çiftçinin gerçek tarlada çektiği fotoğrafın yerini
+tutmaz. Küçük bir kullanıcı grubuyla saha denemesi ve geri bildirim toplama.
+
+---
+
+## Teknolojiler
+
+| Katman | Seçim | Neden |
+|---|---|---|
+| Model | PyTorch + torchvision | Model PyTorch'ta eğitildi |
+| API | FastAPI | Python (modelle aynı dil), otomatik `/docs`, ML'de fiili standart |
+| Sunucu | Uvicorn | FastAPI'nin standart ASGI sunucusu |
+| Görüntü | Pillow | EXIF düzeltme ve format dönüşümü |
+| Arayüz | Tek dosya HTML/CSS/JS | Çerçeve yok; tarlada hızlı açılması önemli |
+| Test | pytest + httpx | — |
+| CI | GitHub Actions | — |
+
+Backend'in Python olması bilinçli bir tercih: model PyTorch'ta olduğu için
+servis de Python olunca model ile arasında hiçbir çeviri katmanı gerekmiyor.
+
+---
+
+## Lisans ve kullanım
+
+Bu depodaki **kod** eğitim amaçlıdır. Ancak eğitilmiş model, CC-BY-NC-ND
+lisanslı PlantWild verisiyle eğitildiği için **ticari kullanıma kapalıdır**
+(bkz. [Lisans uyarısı](#️-lisans-uyarısı)).
+
+Sistemin verdiği sonuçlar bir ön değerlendirmedir, kesin tanı değildir.
+Tarımsal karar almadan önce bir ziraat uzmanına danışın.

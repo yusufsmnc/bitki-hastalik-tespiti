@@ -340,17 +340,37 @@ kullanıcıya gösterir.
 
 ## 🔄 Nasıl çalışır
 
-```
-Telefon/tarayıcı                FastAPI (main.py)              predict.py
-─────────────────               ─────────────────              ──────────
-fotoğraf seç      ──POST──►     boyut kontrolü (10 MB)
-                                EXIF yönünü düzelt
-                                bozuksa 400 döndür
-                                                   ──görüntü──►  224x224 + normalize
-                                                                 ResNet18 → softmax
-                                                                 güven < %95 ?
-                                                   ◄──sözlük───  "emin_degil" / "basarili"
-sonucu göster     ◄──JSON──
+```mermaid
+flowchart TD
+    A["Telefon · fotoğraf seç"]
+
+    subgraph api["FastAPI &middot; main.py"]
+        B["boyut kontrolü (10 MB)"]
+        C["EXIF yönünü düzelt"]
+    end
+
+    subgraph tahmin["predict.py"]
+        E["224×224 + normalize<br/><i>eğitimle birebir aynı</i>"]
+        G["ResNet18 → softmax"]
+        H{"güven ≥ %95?"}
+    end
+
+    S["basarili<br/>hastalık + güven %"]
+    D["emin_degil<br/>daha iyi fotoğraf iste"]
+    X["HTTP 400 / 413"]
+    Z["Telefon · sonucu göster"]
+
+    A -->|POST /predict| B
+    B --> C
+    B -.->|bozuk / çok büyük| X
+    C --> E
+    E --> G
+    G --> H
+    H -->|evet| S
+    H -->|hayır| D
+    S --> Z
+    D --> Z
+    X -.-> Z
 ```
 
 Tasarımın üç önemli ayrıntısı:

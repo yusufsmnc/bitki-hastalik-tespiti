@@ -38,16 +38,16 @@ açıkça söyler ve daha iyi bir fotoğraf ister.
 
 - [📊 Önce dürüst tablo](#-önce-dürüst-tablo)
 - [✅ Neyi başardık](#-neyi-başardık)
-- [🗂️ Veri setleri](#-veri-setleri)
+- [📚 Veri setleri](#-veri-setleri)
 - [🧠 Model](#-model)
-- [🏷️ Tanınan sınıflar (15)](#-tanınan-sınıflar-15)
-- [⚙️ Kurulum](#-kurulum)
+- [🌿 Tanınan sınıflar (15)](#-tanınan-sınıflar-15)
+- [🔧 Kurulum](#-kurulum)
 - [🔌 API](#-api)
 - [🔄 Nasıl çalışır](#-nasıl-çalışır)
 - [📁 Proje yapısı](#-proje-yapısı)
 - [🧪 Testler](#-testler)
-- [🗺️ Yol haritası](#-yol-haritası)
-- [🛠️ Teknolojiler](#-teknolojiler)
+- [🧭 Yol haritası](#-yol-haritası)
+- [🧰 Teknolojiler](#-teknolojiler)
 - [📄 Lisans ve kullanım](#-lisans-ve-kullanım)
 
 </details>
@@ -129,7 +129,7 @@ Projenin bu noktaya kadar çözdüğü somut problemler:
 
 ---
 
-## 🗂️ Veri setleri
+## 📚 Veri setleri
 
 Model üç ayrı veri setinin birleşimiyle eğitildi. Bu birleştirme projenin
 merkezindeki fikir: tek başına laboratuvar verisi tarlada işe yaramıyor.
@@ -186,7 +186,7 @@ transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 
 ---
 
-## 🏷️ Tanınan sınıflar (15)
+## 🌿 Tanınan sınıflar (15)
 
 Model sınıf adlarını İngilizce (PlantVillage adlandırması) üretir; arayüzde
 Türkçe karşılıkları gösterilir.
@@ -225,7 +225,7 @@ Listede olmayan bir sınıf adı gelirse (örn. model değişirse) uygulama
 
 ---
 
-## ⚙️ Kurulum
+## 🔧 Kurulum
 
 ### Gereksinimler
 
@@ -454,7 +454,7 @@ kurulumu, hızlı testler, sonra uçtan uca testler. Tipik süre ~1 dakika.
 
 ---
 
-## 🗺️ Yol haritası
+## 🧭 Yol haritası
 
 Önceliklendirilmiş liste — üsttekiler projenin güvenilirliği için daha kritik.
 
@@ -512,7 +512,7 @@ tutmaz. Küçük bir kullanıcı grubuyla saha denemesi ve geri bildirim toplama
 
 ---
 
-## 🛠️ Teknolojiler
+## 🧰 Teknolojiler
 
 | Katman | Seçim | Neden |
 |---|---|---|

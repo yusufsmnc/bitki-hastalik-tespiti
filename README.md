@@ -93,6 +93,7 @@ Bedeli açıkça kabul ediyoruz: **fotoğrafların yaklaşık %63'ünde sistem c
 vermiyor.** Bu bir kusur değil, bilinçli bir takas — yanlış yönlendirmektense
 susmak.
 
+> [!IMPORTANT]
 > **Bu rakamlar iyimser.** Eşik, yukarıdaki ölçümlerin yapıldığı *aynı* test
 > setine bakılarak seçildi. Yani %84.6 isabet, görülmemiş yeni fotoğraflarda
 > muhtemelen biraz daha düşük çıkar. Dürüst bir ölçüm için eşiğin ayrı bir
@@ -141,11 +142,12 @@ merkezindeki fikir: tek başına laboratuvar verisi tarlada işe yaramıyor.
 
 ### Lisans uyarısı
 
-⚠️ **PlantWild veri seti CC-BY-NC-ND lisanslıdır: ticari kullanım yasaktır.**
-
-Bu model PlantWild verisiyle eğitildiği için, eğitilmiş ağırlıklar da bu
-kısıtın etkisi altındadır. Projeyi ticari bir ürüne dönüştürmeyi
-düşünüyorsanız modeli PlantWild olmadan yeniden eğitmeniz gerekir.
+> [!WARNING]
+> **PlantWild veri seti CC-BY-NC-ND lisanslıdır: ticari kullanım yasaktır.**
+>
+> Bu model PlantWild verisiyle eğitildiği için, eğitilmiş ağırlıklar da bu
+> kısıtın etkisi altındadır. Projeyi ticari bir ürüne dönüştürmeyi
+> düşünüyorsanız modeli PlantWild olmadan yeniden eğitmeniz gerekir.
 
 Diğer veri setlerinin lisans koşulları için kendi kaynaklarına bakın; bu
 depoda veri seti dosyası bulunmuyor.
@@ -161,7 +163,8 @@ depoda veri seti dosyası bulunmuyor.
 - **Çıkarım (inference):** CPU. GPU gerekmez — tahmin saniyeler değil,
   milisaniyeler sürüyor.
 
-> **Not:** Eğitim bu depoda yapılmıyor. Depo yalnızca *eğitilmiş modeli
+> [!NOTE]
+> Eğitim bu depoda yapılmıyor. Depo yalnızca *eğitilmiş modeli
 > kullanan* servisi içerir; eğitim script'i burada yok. `best_model_v3.pth`
 > (45 MB) ve `class_names.json` boyutları nedeniyle git'e dahil edilmedi
 > (bkz. [Kurulum](#-kurulum)).
@@ -176,9 +179,10 @@ transforms.Resize((224, 224))
 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ```
 
-Bu değerler farklı olursa model gözle görülür bir hata vermeden saçmalar —
-en sık yapılan deploy hatasıdır. Bu yüzden değerleri bir test sabitliyor
-(`tests/test_predict.py::test_on_isleme_egitimdekiyle_ayni_kalmali`).
+> [!CAUTION]
+> Bu değerler farklı olursa model gözle görülür bir hata vermeden saçmalar —
+> en sık yapılan deploy hatasıdır. Bu yüzden değerleri bir test sabitliyor
+> (`tests/test_predict.py::test_on_isleme_egitimdekiyle_ayni_kalmali`).
 
 ---
 
@@ -495,5 +499,6 @@ Bu depodaki **kod** eğitim amaçlıdır. Ancak eğitilmiş model, CC-BY-NC-ND
 lisanslı PlantWild verisiyle eğitildiği için **ticari kullanıma kapalıdır**
 (bkz. [Lisans uyarısı](#lisans-uyarısı)).
 
-Sistemin verdiği sonuçlar bir ön değerlendirmedir, kesin tanı değildir.
-Tarımsal karar almadan önce bir ziraat uzmanına danışın.
+> [!CAUTION]
+> Sistemin verdiği sonuçlar bir ön değerlendirmedir, kesin tanı değildir.
+> Tarımsal karar almadan önce bir ziraat uzmanına danışın.

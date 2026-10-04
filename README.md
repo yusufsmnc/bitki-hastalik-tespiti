@@ -191,6 +191,15 @@ transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 Model sınıf adlarını İngilizce (PlantVillage adlandırması) üretir; arayüzde
 Türkçe karşılıkları gösterilir.
 
+| Ürün | Sınıf | Kapsam |
+|---|---:|---|
+| Domates | 10 | sağlıklı + 9 hastalık |
+| Patates | 3 | sağlıklı + 2 hastalık |
+| Biber | 2 | sağlıklı + 1 hastalık |
+
+<details>
+<summary><b>15 sınıfın tam listesi (model çıktısındaki adlarla)</b></summary>
+
 | Ürün | Sınıf | Türkçe |
 |---|---|---|
 | Biber | `Pepper__bell___Bacterial_spot` | Biber - Bakteriyel leke |
@@ -208,6 +217,8 @@ Türkçe karşılıkları gösterilir.
 | Domates | `Tomato__Tomato_YellowLeaf__Curl_Virus` | Domates - Sarı yaprak kıvırcıklık virüsü |
 | Domates | `Tomato__Tomato_mosaic_virus` | Domates - Mozaik virüsü |
 | Domates | `Tomato_healthy` | Domates - Sağlıklı |
+
+</details>
 
 Listede olmayan bir sınıf adı gelirse (örn. model değişirse) uygulama
 çökmez, ham İngilizce adı gösterir.
@@ -470,6 +481,9 @@ Asıl darboğaz bu. Denenebilecekler: daha agresif veri artırma (augmentation)
 verisi; daha güçlü bir omurga (ResNet50, EfficientNet); yaprağı arka plandan
 ayıran bir ön adım (segmentasyon).
 
+<details>
+<summary><b>Daha uzun vadeli maddeler (4–7)</b></summary>
+
 ### 4. Daha fazla ürün ve hastalık
 
 Şu an 3 ürün var. Türkiye'de yaygın diğer ürünler (buğday, mısır, üzüm,
@@ -493,6 +507,8 @@ yalnızca kendi alan adına izin verilmeli.
 
 Hiçbir rakam, gerçek bir çiftçinin gerçek tarlada çektiği fotoğrafın yerini
 tutmaz. Küçük bir kullanıcı grubuyla saha denemesi ve geri bildirim toplama.
+
+</details>
 
 ---
 

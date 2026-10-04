@@ -61,7 +61,7 @@ bu. Bitki hastalığı tespiti literatüründe "%99 doğruluk" iddiaları yaygı
 neredeyse hepsi **laboratuvar** rakamıdır. Bu projede ikisini de ölçtük:
 
 | Ortam | Doğruluk |
-|---|---|
+|---|---:|
 | Laboratuvar fotoğrafları (düz zemin, tek yaprak, kontrollü ışık) | ~%99 |
 | **Gerçek tarla fotoğrafları** (dağınık arka plan, gölge, açı) | **~%62** |
 
@@ -80,7 +80,7 @@ Eşik keyfi seçilmedi, ölçüldü. 569 gerçek tarla fotoğrafı (PlantDoc tes
 bölümü) üzerinde:
 
 | Güven eşiği | Kapsama (cevap verdiği oran) | Cevap verdiğinde isabet |
-|---|---|---|
+|---:|---:|---:|
 | 0.80 | %58.3 | %73.8 |
 | 0.90 | %45.0 | %80.1 |
 | **0.95 (seçilen)** | **%36.6** | **%84.6** |
@@ -339,7 +339,7 @@ kullanıcı onu cevap sanar.
 ### Hata kodları
 
 | Kod | Anlamı |
-|---|---|
+|:---:|---|
 | 400 | Dosya okunabilir bir resim değil (bozuk, yarım veya resim olmayan) |
 | 413 | Dosya 10 MB sınırını aşıyor |
 | 422 | `file` alanı hiç gönderilmemiş |

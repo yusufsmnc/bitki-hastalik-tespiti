@@ -33,9 +33,28 @@ Hedef kullanım: tarladaki bir çiftçi telefonuyla yaprağın fotoğrafını ç
 sistem olası hastalığı ve ne kadar emin olduğunu söyler. Emin değilse bunu
 açıkça söyler ve daha iyi bir fotoğraf ister.
 
+<details>
+<summary><b>İçindekiler</b></summary>
+
+- [📊 Önce dürüst tablo](#-önce-dürüst-tablo)
+- [✅ Neyi başardık](#-neyi-başardık)
+- [🗂️ Veri setleri](#-veri-setleri)
+- [🧠 Model](#-model)
+- [🏷️ Tanınan sınıflar (15)](#-tanınan-sınıflar-15)
+- [⚙️ Kurulum](#-kurulum)
+- [🔌 API](#-api)
+- [🔄 Nasıl çalışır](#-nasıl-çalışır)
+- [📁 Proje yapısı](#-proje-yapısı)
+- [🧪 Testler](#-testler)
+- [🗺️ Yol haritası](#-yol-haritası)
+- [🛠️ Teknolojiler](#-teknolojiler)
+- [📄 Lisans ve kullanım](#-lisans-ve-kullanım)
+
+</details>
+
 ---
 
-## Önce dürüst tablo
+## 📊 Önce dürüst tablo
 
 Bu bölüm başta duruyor, çünkü projeyi değerlendirirken ilk bilmeniz gereken şey
 bu. Bitki hastalığı tespiti literatüründe "%99 doğruluk" iddiaları yaygındır ve
@@ -78,7 +97,7 @@ susmak.
 > setine bakılarak seçildi. Yani %84.6 isabet, görülmemiş yeni fotoğraflarda
 > muhtemelen biraz daha düşük çıkar. Dürüst bir ölçüm için eşiğin ayrı bir
 > doğrulama setinde seçilip test setinde bir kez ölçülmesi gerekir. Bunu
-> [Yol haritası](#yol-haritası) bölümünde ilk sıraya koyduk.
+> [Yol haritası](#-yol-haritası) bölümünde ilk sıraya koyduk.
 
 ### Bu sistem ne DEĞİL
 
@@ -90,7 +109,7 @@ susmak.
 
 ---
 
-## Neyi başardık
+## ✅ Neyi başardık
 
 Projenin bu noktaya kadar çözdüğü somut problemler:
 
@@ -109,7 +128,7 @@ Projenin bu noktaya kadar çözdüğü somut problemler:
 
 ---
 
-## Veri setleri
+## 🗂️ Veri setleri
 
 Model üç ayrı veri setinin birleşimiyle eğitildi. Bu birleştirme projenin
 merkezindeki fikir: tek başına laboratuvar verisi tarlada işe yaramıyor.
@@ -133,7 +152,7 @@ depoda veri seti dosyası bulunmuyor.
 
 ---
 
-## Model
+## 🧠 Model
 
 - **Mimari:** ResNet18 (torchvision)
 - **Yöntem:** Transfer learning + fine-tuning
@@ -145,7 +164,7 @@ depoda veri seti dosyası bulunmuyor.
 > **Not:** Eğitim bu depoda yapılmıyor. Depo yalnızca *eğitilmiş modeli
 > kullanan* servisi içerir; eğitim script'i burada yok. `best_model_v3.pth`
 > (45 MB) ve `class_names.json` boyutları nedeniyle git'e dahil edilmedi
-> (bkz. [Kurulum](#kurulum)).
+> (bkz. [Kurulum](#-kurulum)).
 
 ### Ön işlemede kritik kural
 
@@ -163,7 +182,7 @@ en sık yapılan deploy hatasıdır. Bu yüzden değerleri bir test sabitliyor
 
 ---
 
-## Tanınan sınıflar (15)
+## 🏷️ Tanınan sınıflar (15)
 
 Model sınıf adlarını İngilizce (PlantVillage adlandırması) üretir; arayüzde
 Türkçe karşılıkları gösterilir.
@@ -191,7 +210,7 @@ Listede olmayan bir sınıf adı gelirse (örn. model değişirse) uygulama
 
 ---
 
-## Kurulum
+## ⚙️ Kurulum
 
 ### Gereksinimler
 
@@ -259,7 +278,7 @@ isteyebilir.
 
 ---
 
-## API
+## 🔌 API
 
 | Adres | Yöntem | Açıklama |
 |---|---|---|
@@ -315,7 +334,7 @@ kullanıcıya gösterir.
 
 ---
 
-## Nasıl çalışır
+## 🔄 Nasıl çalışır
 
 ```
 Telefon/tarayıcı                FastAPI (main.py)              predict.py
@@ -342,7 +361,7 @@ Tasarımın üç önemli ayrıntısı:
 
 ---
 
-## Proje yapısı
+## 📁 Proje yapısı
 
 ```
 bitki-hastalik-tespiti/
@@ -368,7 +387,7 @@ bitki-hastalik-tespiti/
 
 ---
 
-## Testler
+## 🧪 Testler
 
 ```bash
 pip install -r requirements-dev.txt
@@ -400,7 +419,7 @@ kurulumu, hızlı testler, sonra uçtan uca testler. Tipik süre ~1 dakika.
 
 ---
 
-## Yol haritası
+## 🗺️ Yol haritası
 
 Önceliklendirilmiş liste — üsttekiler projenin güvenilirliği için daha kritik.
 
@@ -453,7 +472,7 @@ tutmaz. Küçük bir kullanıcı grubuyla saha denemesi ve geri bildirim toplama
 
 ---
 
-## Teknolojiler
+## 🛠️ Teknolojiler
 
 | Katman | Seçim | Neden |
 |---|---|---|
@@ -470,7 +489,7 @@ servis de Python olunca model ile arasında hiçbir çeviri katmanı gerekmiyor.
 
 ---
 
-## Lisans ve kullanım
+## 📄 Lisans ve kullanım
 
 Bu depodaki **kod** eğitim amaçlıdır. Ancak eğitilmiş model, CC-BY-NC-ND
 lisanslı PlantWild verisiyle eğitildiği için **ticari kullanıma kapalıdır**

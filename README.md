@@ -1,9 +1,33 @@
-# Bitki Hastalığı Tespiti
+<div align="center">
 
-[![CI](https://github.com/yusufsmnc/bitki-hastalik-tespiti/actions/workflows/ci.yml/badge.svg)](https://github.com/yusufsmnc/bitki-hastalik-tespiti/actions/workflows/ci.yml)
+<h1>Bitki Hastalığı Tespiti</h1>
 
-Yaprak fotoğrafından domates, patates ve biber hastalıklarını tanımaya çalışan,
-**sınırlarını bilen** bir karar-destek sistemi.
+<p>
+  <b>
+    Yaprak fotoğrafından domates, patates ve biber hastalıklarını tanımaya<br>
+    çalışan, <i>sınırlarını bilen</i> bir karar-destek sistemi.
+  </b>
+</p>
+
+<p>
+  <a href="https://github.com/yusufsmnc/bitki-hastalik-tespiti/actions/workflows/ci.yml"><img alt="CI durumu" src="https://github.com/yusufsmnc/bitki-hastalik-tespiti/actions/workflows/ci.yml/badge.svg"></a>
+  <img alt="Python 3.14" src="https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white">
+  <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white">
+  <img alt="PyTorch ResNet18" src="https://img.shields.io/badge/PyTorch-ResNet18-EE4C2C?logo=pytorch&logoColor=white">
+  <img alt="Ticari kullanım kapalı" src="https://img.shields.io/badge/ticari%20kullan%C4%B1m-kapal%C4%B1-critical">
+</p>
+
+<p>
+  Laboratuvar <b>~%99</b>
+  &nbsp;·&nbsp;
+  <b>Gerçek tarla ~%62</b>
+  &nbsp;·&nbsp;
+  3 ürün, 15 sınıf
+  &nbsp;·&nbsp;
+  emin değilse susar
+</p>
+
+</div>
 
 Hedef kullanım: tarladaki bir çiftçi telefonuyla yaprağın fotoğrafını çeker,
 sistem olası hastalığı ve ne kadar emin olduğunu söyler. Emin değilse bunu

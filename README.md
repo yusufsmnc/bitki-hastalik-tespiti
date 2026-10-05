@@ -404,6 +404,7 @@ bitki-hastalik-tespiti/
 ├── requirements.txt            uygulama bağımlılıkları
 ├── requirements-dev.txt        pytest, httpx
 ├── pytest.ini
+├── docs/model-yol-haritasi.md  model eğitimi yol haritası
 ├── .github/workflows/ci.yml    8 aşamalı CI boru hattı
 ├── tests/
 │   ├── conftest.py             CI için sahte model üretir
@@ -455,6 +456,11 @@ kurulumu, hızlı testler, sonra uçtan uca testler. Tipik süre ~1 dakika.
 ---
 
 ## 🧭 Yol haritası
+
+> [!TIP]
+> Model eğitiminin aşama aşama ayrıntılı planı (ölçüm, yeni veri, backbone
+> yarışması, lezyon denetimi, damıtma) ayrı bir belgede:
+> **[Model Geliştirme Yol Haritası](docs/model-yol-haritasi.md)**
 
 Önceliklendirilmiş liste — üsttekiler projenin güvenilirliği için daha kritik.
 

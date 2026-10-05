@@ -166,8 +166,8 @@ depoda veri seti dosyası bulunmuyor.
 > [!NOTE]
 > Eğitim bu depoda yapılmıyor. Depo yalnızca *eğitilmiş modeli
 > kullanan* servisi içerir; eğitim script'i burada yok. `best_model_v3.pth`
-> (45 MB) ve `class_names.json` boyutları nedeniyle git'e dahil edilmedi
-> (bkz. [Kurulum](#-kurulum)).
+> (45 MB) boyutu nedeniyle git'e dahil edilmedi (bkz. [Kurulum](#-kurulum)).
+> Sınıf adlarını tutan küçük `class_names.json` ise depoda.
 
 ### Ön işlemede kritik kural
 
@@ -230,19 +230,24 @@ Listede olmayan bir sınıf adı gelirse (örn. model değişirse) uygulama
 ### Gereksinimler
 
 - Python 3.14 (CI bu sürümle çalışıyor; 3.11+ muhtemelen sorunsuzdur)
-- Model dosyaları: `best_model_v3.pth` ve `class_names.json`
+- Model dosyası: `best_model_v3.pth` (`class_names.json` depoda zaten var)
 
-### 1. Model dosyalarını edinin
+### 1. Model dosyasını edinin
 
-**Bu iki dosya git deposunda yoktur** — `best_model_v3.pth` 45 MB olduğu için
-`.gitignore`'dadır. Dosyaları proje sahibinden edinip `bitki-backend/`
-klasörünün içine koyun:
+**`best_model_v3.pth` git deposunda yoktur** — 45 MB olduğu için
+`.gitignore`'dadır. Dosyayı proje sahibinden edinip `bitki-backend/`
+klasörünün içine koyun. Yanındaki `class_names.json` depoyla birlikte gelir:
 
 ```
 bitki-backend/
-├── best_model_v3.pth
-└── class_names.json
+├── best_model_v3.pth           (siz koyacaksınız)
+└── class_names.json            (depoda var)
 ```
+
+> [!WARNING]
+> `class_names.json`'daki sınıf sırası, modelin eğitildiği sırayla birebir
+> aynı olmalı. Yeni bir model gelirse bu dosya da onunla birlikte güncellenir;
+> aksi halde model doğru tahmin eder ama ekranda yanlış hastalık adı görünür.
 
 ### 2. Sanal ortam ve bağımlılıklar
 
@@ -418,7 +423,7 @@ bitki-hastalik-tespiti/
     ├── tune_threshold.py       güven eşiği ölçüm script'i
     ├── static/index.html       telefon uyumlu arayüz
     ├── best_model_v3.pth       (git'te YOK)
-    └── class_names.json        (git'te YOK)
+    └── class_names.json        sınıf adları (modelle eşleşmeli)
 ```
 
 ---

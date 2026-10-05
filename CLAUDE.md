@@ -11,7 +11,8 @@ Yaprak fotoğrafından bitki hastalığı tespiti yapan bir sistem. Hedef kullan
 - **Kapsam:** 3 ürün, 15 sınıf (domates, patates, biber — sağlıklı + çeşitli hastalıklar).
 - **Model:** ResNet18, transfer learning + fine-tuning ile eğitildi (PyTorch).
 - **Eğitim verisi:** PlantVillage (laboratuvar) + PlantDoc (gerçek tarla) + PlantWild (gerçek tarla) birleştirilerek.
-- **Model dosyası:** `best_model_v3.pth` + `class_names.json`. **Bu dosyalar git'te YOK** (`.gitignore`'da, boyut nedeniyle). Google Drive'da tutuluyor; kullanıcı yerelde `bitki-backend/` içine koydu.
+- **Model dosyası:** `best_model_v3.pth` **git'te YOK** (`.gitignore`'da, boyut nedeniyle). Google Drive'da tutuluyor; kullanıcı yerelde `bitki-backend/` içine koydu.
+- **`class_names.json` git'te VAR** (407 bayt, sınıf adları). Sınıf sırası modelle birebir eşleşmeli: yeni model gelirse bu dosya da birlikte güncellenir.
 
 ### Dürüst performans tablosu (ASLA abartma)
 - Laboratuvar test doğruluğu: ~%99
@@ -45,7 +46,7 @@ bitki-hastalik-tespiti/         (git deposu kökü)
 │   ├── tune_threshold.py
 │   ├── plantdoc_split/         (git yok — eşik ayarı için test görüntüleri)
 │   ├── best_model_v3.pth       (git yok — yerelde var)
-│   ├── class_names.json        (git yok — yerelde var)
+│   ├── class_names.json        (git'te var — modelle eşleşmeli)
 │   └── test.jpg                (git yok)
 ```
 

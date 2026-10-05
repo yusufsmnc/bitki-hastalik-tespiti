@@ -68,3 +68,53 @@ Amaç: v3'ü yeniden eğitmeden daha kullanışlı hale getirmek ve hataların n
 
 **Paralel iş:** yeni veri hazırlığı (Aşama 2'nin hazırlık kısmı).
 **Kapı:** Grad-CAM sonucuna göre Aşama 4'ün önceliği belirlendi; kalibre edilmiş eşik `predict.py`'ye işlendi.
+
+## Aşama 2 — v4: yeni veri ile ResNet18
+
+Amaç: yeni saha verisinin etkisini mimariden bağımsız ölçmek. Değişen tek şey veri.
+
+Hazırlık (Aşama 1 ile paralel):
+
+- [ ] Her seti indir, 20-30 örneğe gözle bak
+- [ ] Eşleme tablosu yaz; sadece temiz eşlemeleri al
+- [ ] Remap uygula
+- [ ] phash ile test ve val setine karşı tara, eşleşenleri at
+- [ ] Setler arası tekrarları at (özellikle PlantSeg ve PlantWild)
+- [ ] PlantSeg maskelerini Aşama 4 için ayrı klasörde sakla
+
+Eğitim:
+
+- [ ] `WeightedRandomSampler` kaynak ağırlıklarını yeni setleri ayrı kaynak sayacak şekilde güncelle
+- [ ] v4'ü eğit, v3 ile kıyasla
+- [ ] Sonuç şaşırtıcıysa setleri tek tek çıkararak sorunlu kaynağı bul
+
+| Veri seti | İçerik | Bizim için | Lisans | Dikkat |
+| --- | --- | --- | --- | --- |
+| [PlantSeg](https://github.com/tqwei05/PlantSeg) | 11.400+ saha görüntüsü, 115 hastalık, lezyon maskeleri | Sınıflandırma verisi + Aşama 4 maskeleri | [CC BY-NC-ND 4.0](https://zenodo.org/records/13762907) | PlantDoc/PlantWild ile çakışabilir |
+| [FieldPlant](https://universe.roboflow.com/plant-disease-detection/fieldplant) | Kamerun tarlaları, 5.170 görüntü (mısır, manyok, domates) | Domates saha verisi | Roboflow sürümü CC BY 4.0 görünüyor, doğrula | Nesne tespiti seti: yaprakları kutulardan kırp |
+| [Endonezya patates seti](https://data.mendeley.com/datasets/ptz377bwb8/1) | 3.076 telefon fotoğrafı, 7 sınıf | Late_blight, Potato___healthy | Sayfada doğrula | Sadece phytophthora → Late_blight ve healthy → healthy |
+| [Etiyopya patates seti](https://data.mendeley.com/datasets/v4w72bsts5/1) | 63 geç yanıklık + 363 sağlıklı | Potato___healthy saha boşluğu | Sayfada doğrula | Küçük ve dengesiz |
+| Kendi saha fotoğrafların | Hedef bölgeden | Gerçek deployment test seti | Senin | Eğitime değil teste ayır |
+
+**Çıktı:** `veri_esleme.md`, `best_model_v4.pth`, v3–v4 kıyas tablosu
+**Kapı:** v4, v3'ü saha val ve test setinde geçer.
+
+## Aşama 3 — Backbone yarışması
+
+Amaç: genişletilmiş veride en iyi önceden eğitilmiş backbone'u bulmak (Colab Pro). Sıfırdan eğitim yok.
+
+Adım 1 — Linear probe:
+
+- [ ] Her aday için backbone donuk, özellikleri bir kere çıkar ve kaydet
+- [ ] Üstüne lojistik regresyon eğit, saha val setinde kıyasla
+- [ ] Adaylar: DINOv3 ViT-L/16, BioCLIP 2, DINOv2 ViT-L/14, referans ResNet18
+
+Adım 2 — Kazananı tam fine-tune:
+
+- [ ] Daha yüksek çözünürlük (384-448)
+- [ ] Katmana göre azalan öğrenme oranı (LLRD) veya LoRA; `AdamW`; bf16
+- [ ] İki aşamalı eğitim korunur
+- [ ] Kazananın ön işlemesini not et
+
+**Çıktı:** linear probe sonuç tablosu, `best_model_v5.pth`
+**Kapı:** Kazanan, v4'ü saha val setinde anlamlı farkla geçer.

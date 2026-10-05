@@ -118,3 +118,68 @@ Adım 2 — Kazananı tam fine-tune:
 
 **Çıktı:** linear probe sonuç tablosu, `best_model_v5.pth`
 **Kapı:** Kazanan, v4'ü saha val setinde anlamlı farkla geçer.
+
+## Aşama 4 — Lezyon ve arka plan denetimi
+
+Amaç: modeli arka plana değil hastalıklı bölgeye baktırmak. Öncelik Aşama 1'deki Grad-CAM sayımına göre belirlenir.
+
+| Grad-CAM bulgusu | Öncelikli deney |
+| --- | --- |
+| Isı çoğunlukla arka planda | Yaprak maskesi veya arka plan değiştirme + tutarlılık kaybı |
+| Isı yaprakta ama lezyonu kaçırıyor | Çok görevli öğrenme (PlantSeg maskeleri) + yüksek çözünürlük |
+| Isı doğru lezyonda, sınıf yanlış | Düşük öncelik; güçlü backbone ve hedef saha verisi daha etkili |
+
+- [ ] Çok görevli öğrenme: segmentasyon başı ekle; kayıp = sınıflandırma + λ × segmentasyon
+- [ ] Arka plan değiştirme: PlantVillage yapraklarını kes, gerçek tarla arka planlarına yapıştır
+- [ ] Tutarlılık kaybı: aynı yaprak iki farklı arka planda; tahminler arasındaki farkı cezalandır
+- [ ] Her deneyden sonra aynı hatalı örneklerin Grad-CAM'ini tekrar çıkar
+
+Literatür notu: arka plan değiştirme yayınlanmış bir yöntemdir ([Lab-to-Field](https://www.sciencedirect.com/science/article/pii/S1574954125005886)); tutarlılık kaybı ile birleşimi bu projenin kendi hipotezi olarak raporlanır.
+
+**Kapı:** En az bir deney saha val setinde kazanç getirir ve Grad-CAM'de odak lezyona kayar.
+
+## Aşama 5 — Ensemble, damıtma, deploy
+
+- [ ] Öğretmen: farklı ailelerden iki model (CNN + ViT) ensemble
+- [ ] Öğrenci: küçük model (örneğin DINOv3 ConvNeXt-Tiny) öğretmenden damıtılır
+- [ ] CPU'da tek görüntü tahmin süresini ölç (hedef: 1 saniyenin altı)
+- [ ] Öğrenciyi kalibre et, eşiği yeniden ayarla
+- [ ] `predict.py`: yeni model, yeni ön işleme, ürün maskesi, soru soran mod
+- [ ] Arayüz: ürün seçimi butonu ve soru akışı
+- [ ] README: tüm sürümlerin dürüst sonuç tablosu ve olumsuz bulgular
+- [ ] 569'luk test setinde tek, son ölçüm
+
+**Kapı:** Öğrenci CPU hedefini tutturur ve saha doğruluğu v3'ün üstündedir.
+
+---
+
+## Sonuç tablosu
+
+Saha val her deneyde, test seti sadece aşama kapılarında doldurulur.
+
+| Sürüm | Değişen tek şey | Saha val top-1 (%) | Saha test top-1 (%) | Top-3 (%) | Makro f1 | CPU süresi (ms) | Not |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| v3 | Başlangıç | | 62.21 | | | | Test seti seçimde kullanılmış olabilir; Aşama 0'da doğrulanacak |
+| v3 + maske | Ürün seçimi | | | | | | |
+| v3 + kalibrasyon + TTA | Çıkarım | | | | | | |
+| v3 + soru (1 soru) | Etkileşim | | | | | | Simülasyon, %20 cevap hatası |
+| v4 | Yeni veri | | | | | | |
+| v5 | Backbone | | | | | | |
+| v6 | Lezyon denetimi | | | | | | |
+| Öğrenci | Damıtma | | | | | | |
+
+## Riskler
+
+| Risk | Etki | Önlem |
+| --- | --- | --- |
+| Veri setleri arası çakışma | Doğruluk şişer | Her kaynakta phash taraması |
+| Yanlış remap | Model sessizce yanlış öğrenir | Eşleme tablosu + örneklere gözle bakış |
+| Soru tablosundaki olasılıklar uydurma | Soru soran mod yanlış yönlendirir | Uzman veya kaynak doğrulaması |
+| Büyük modelin CPU'da yavaş kalması | Çiftçi bekler | Damıtma |
+| PlantDoc dışı saha koşulları | Gerçek bölgede doğruluk düşük kalır | Kendi saha test fotoğrafları |
+
+## Gelecek fikirler
+
+- **Hava durumu önseli:** fotoğrafın yer ve tarihindeki sıcaklık/nem bilgisiyle hastalık riskini birleştirmek.
+- **Çoklu çekim:** yaprağın ön yüzü, arka yüzü ve bitkinin geneli birlikte değerlendirilir.
+- **Aktif öğrenme döngüsü:** deploy sonrası düşük güvenli fotoğraflar (kullanıcı onayıyla) etiketlenip eğitime katılır.

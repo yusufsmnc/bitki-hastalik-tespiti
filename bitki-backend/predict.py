@@ -13,17 +13,17 @@ BURASI = Path(__file__).resolve().parent
 
 
 # --- Yapılandırma -------------------------------------------------------
-# Hangi ağırlık dosyasının yükleneceği KODUN değil MODELİN bilgisi. Dosya adını
-# kodun içine gömmek, model değiştiğinde kod değiştirmek demekti; ayrı bir
-# "model künyesi" dosyasında tutunca model ve kod birbirinden ayrışıyor
-# (class_names.json gibi).
+# Sıcaklık ve eşikler KODUN değil, MODELİN özelliği: üçü de Colab'da bu
+# belirli ağırlık dosyası üzerinde ölçüldü. Yeni bir model eğitilirse üçü
+# birlikte değişir. Bu yüzden model dosya adıyla aynı yerde, ayrı bir
+# "model künyesi" dosyasında duruyorlar (class_names.json gibi).
 YAPILANDIRMA_YOLU = BURASI / "model_config.json"
 
 
 def _yapilandirmayi_oku(yol):
     """model_config.json'u okur ve beklenen alanların varlığını doğrular.
 
-    Dosya bozuk veya eksikse açılışta hata verir: yarım yapılandırmayla
+    Dosya bozuk veya eksikse açılışta hata verir: yarım kalibrasyonla
     tahmin üretmek, hiç açılmamaktan daha kötü.
     """
     try:
@@ -32,7 +32,7 @@ def _yapilandirmayi_oku(yol):
     except (OSError, json.JSONDecodeError) as hata:
         raise RuntimeError(f"model_config.json okunamadı ({yol}): {hata}") from hata
 
-    for anahtar in ("model_dosyasi",):
+    for anahtar in ("model_dosyasi", "sicaklik", "guven_esigi", "saglikli_esigi"):
         if anahtar not in veri:
             raise RuntimeError(f"model_config.json'da '{anahtar}' alanı yok ({yol}).")
     return veri
@@ -44,6 +44,30 @@ yapilandirma = _yapilandirmayi_oku(YAPILANDIRMA_YOLU)
 # öncelik sırası: ortam değişkeni > model_config.json > varsayılan.
 CLASS_NAMES_YOLU = Path(os.getenv("CLASS_NAMES_PATH", BURASI / "class_names.json"))
 MODEL_YOLU = Path(os.getenv("MODEL_PATH", BURASI / yapilandirma["model_dosyasi"]))
+
+# Sıcaklık ölçekleme (temperature scaling): logitler softmax'tan ÖNCE bu
+# sayıya bölünür. Tahmini DEĞİŞTİRMEZ (bölme sıralamayı bozmaz), sadece
+# aşırı özgüvenli olasılıkları bastırıp güven skorunu gerçek isabetle
+# uyumlu hale getirir.
+SICAKLIK = float(yapilandirma["sicaklik"])
+
+# Karar eşikleri. Değerler modül seviyesinde sabit olarak duruyor ki
+# testler monkeypatch ile tek tek değiştirebilsin.
+#
+# DİKKAT: Eşik eskiden 0.95'ti, şimdi 0.70. Bu bir GEVŞETME DEĞİL --
+# ölçekler farklı: 0.95 kalibre edilmemiş (aşırı özgüvenli) olasılıklar
+# üzerindeydi, 0.70 ise SICAKLIK ile bastırılmış olasılıklar üzerinde.
+#
+# T=1.95 ve 0.70 eşiği, PlantDoc eğitim bölümünden ayrılmış 163 görüntülük
+# saha VAL setinde seçildi (test setiyle phash karşılaştırılıp kopyaları
+# temizlendi). 569 görüntülük test seti seçimde kullanılmadı, sadece bir kez
+# raporlandı: maskeli Top-1 %69.77, kesin cevapların isabeti %88.1.
+# 0.80 "sağlıklı" eşiği veriyle ayarlanmadı -- bilinçli güvenlik kararı:
+# hastalıklı yaprağa "sağlıklı" demek tedaviyi geciktirir, bu hatayı
+# zorlaştırmak istedik. Sınırlar ve varsayımlar: CLAUDE.md Bölüm 1.
+GUVEN_ESIGI = float(yapilandirma["guven_esigi"])
+SAGLIKLI_ESIGI = float(yapilandirma["saglikli_esigi"])
+
 
 # --- Sınıflar ve ürün haritası ------------------------------------------
 with open(CLASS_NAMES_YOLU, encoding="utf-8") as f:
@@ -112,23 +136,6 @@ transform = transforms.Compose([
     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
 
-# Güven eşiği veriyle seçildi (2026-09-29, tune_threshold.py ile ölçüldü).
-# PlantDoc test setinde 569 gerçek tarla görüntüsü üzerinde ölçüm:
-#   eşik 0.80 -> kapsama %58.3, isabet %73.8
-#   eşik 0.90 -> kapsama %45.0, isabet %80.1
-#   eşik 0.95 -> kapsama %36.6, isabet %84.6   <-- seçilen
-#   eşik 0.97 -> kapsama %30.2, isabet %87.8
-# Kural: isabetin ~%85'e ulaştığı EN DÜŞÜK eşik. 0.97 daha isabetli ama
-# 6.4 puan daha kapsama yakıyor; kazanç bu bedeli karşılamıyor.
-# Bedeli bilerek kabul ediyoruz: fotoğrafların ~%63'üne "emin değil" denir.
-# Modelin eşiksiz genel doğruluğu bu sette %62.2 -- yanlış yönlendirmektense
-# susmak tercih edildi.
-# UYARI: Eşik, yukarıdaki rakamların ölçüldüğü AYNI test setine bakılarak
-# seçildi. Bu yüzden %84.6 isabet iyimser bir tahmin; görülmemiş yeni
-# fotoğraflarda biraz daha düşük çıkması beklenir. Dürüst bir ölçüm için
-# eşik ayrı bir doğrulama setinde seçilip test setinde bir kez ölçülmeli.
-GUVEN_ESIGI = 0.95
-
 # Model sınıf adlarını İngilizce döndürür (PlantVillage adları). Çiftçiye
 # gösterilecek Türkçe karşılıklar burada. Listede olmayan bir ad gelirse
 # (örn. yeni bir model) ham ad kullanılır, uygulama çökmez.
@@ -155,33 +162,107 @@ def turkce_ad(sinif):
     return TURKCE_ADLAR.get(sinif, sinif)
 
 
-def tahmin_et_goruntu(img):
+def _urun_maskesi(urun):
+    """Seçilen ürünün DIŞINDAKİ sınıflar için True olan maske tensörü üretir.
+
+    masked_fill bu maskenin True olduğu yerleri -inf ile doldurur; softmax
+    sonrası o sınıfların olasılığı tam olarak 0 olur.
+    """
+    maske = torch.ones(num_classes, dtype=torch.bool)
+    for i in URUN_INDEKSLERI[urun]:
+        maske[i] = False
+    return maske
+
+
+def _adaylari_cikar(olasiliklar, urun, en_fazla=3):
+    """Seçilen ürüne ait sınıflar arasından en olası en fazla 3 adayı döndürür.
+
+    Filtre "olasılığı 0 olanları at" değil, "izinli indeksler arasından seç":
+    izinli ama çok düşük olasılıklı bir sınıf float'ta 0'a yuvarlanabilir ve
+    o zaman biberde aday sayısı 2 yerine 1 çıkardı.
+    """
+    siralanmis = sorted(URUN_INDEKSLERI[urun], key=lambda i: olasiliklar[i], reverse=True)
+
+    return [
+        {
+            "hastalik": class_names[i],
+            "hastalik_tr": turkce_ad(class_names[i]),
+            "guven": round(olasiliklar[i] * 100, 1),
+        }
+        for i in siralanmis[:en_fazla]
+    ]
+
+
+def _esik(sinif):
+    """Tahmin 'healthy' bir sınıfsa daha sıkı sağlıklı eşiğini döndürür.
+
+    Sabitleri çağrı anında okur; böylece testler monkeypatch ile
+    eşikleri değiştirebilir.
+    """
+    return SAGLIKLI_ESIGI if "healthy" in sinif.lower() else GUVEN_ESIGI
+
+
+def tahmin_et_goruntu(img, urun):
+    """Bir yaprak görüntüsü ve kullanıcının seçtiği ürün için tahmin üretir.
+
+    Seçilen ürünün dışındaki sınıflar maskelenir, logitler sıcaklık ölçekleme
+    ile kalibre edilir; güven eşiğinin altında kesin cevap yerine "emin_degil"
+    ve en olası adaylar döndürülür.
+    """
+    if urun not in URUN_INDEKSLERI:
+        raise ValueError(
+            f"Geçersiz ürün: {urun!r}. Geçerli değerler: {', '.join(GECERLI_URUNLER)}."
+        )
+
     x = transform(img).unsqueeze(0)
 
     with torch.no_grad():
-        output = model(x)
-        probs = torch.softmax(output, dim=1)
-        guven, tahmin_idx = torch.max(probs, 1)
+        logitler = model(x)
 
-    guven = guven.item()
-    tahmin_sinif = class_names[tahmin_idx.item()]
+        # Maske softmax'tan ÖNCE uygulanmalı. Sonra uygulasaydık kesilen
+        # sınıfların olasılığı pay toplamına girer, kalan olasılıklar 1'e
+        # toplanmaz ve güven skorları ölçtüğümüz değerlerden sapardı.
+        logitler = logitler.masked_fill(_urun_maskesi(urun), float("-inf"))
 
-    if guven < GUVEN_ESIGI:
+        # Sıcaklığa bölme maskeyi bozmaz: -inf / 1.95 yine -inf'tir.
+        olasiliklar = torch.softmax(logitler / SICAKLIK, dim=1)
+
+    olasiliklar = olasiliklar[0].tolist()
+
+    # argmax'ı tüm satır üzerinde değil, izinli indeksler arasında alıyoruz:
+    # maskelenenler zaten 0 ama niyeti açıkça yazmak daha güvenli.
+    tahmin_idx = max(URUN_INDEKSLERI[urun], key=lambda i: olasiliklar[i])
+    tahmin_sinif = class_names[tahmin_idx]
+    guven = olasiliklar[tahmin_idx]
+    adaylar = _adaylari_cikar(olasiliklar, urun)
+
+    # Karşılaştırma HAM float ile; round() sadece gösterim için. Yuvarlanmış
+    # değerle karşılaştırsaydık 0.6996 -> "%70, ama emin değilim" gibi
+    # kendisiyle çelişen bir çıktı üretirdik.
+    if guven < _esik(tahmin_sinif):
         return {
             "durum": "emin_degil",
+            "urun": urun,
             "mesaj": "Bu yaprağı net tanıyamadım. Daha yakın ve net bir fotoğraf çeker misiniz?",
             "en_yakin_tahmin": tahmin_sinif,
             "en_yakin_tahmin_tr": turkce_ad(tahmin_sinif),
-            "guven": round(guven * 100, 1)
+            "guven": round(guven * 100, 1),
+            "adaylar": adaylar,
         }
     else:
         return {
             "durum": "basarili",
+            "urun": urun,
             "hastalik": tahmin_sinif,
             "hastalik_tr": turkce_ad(tahmin_sinif),
-            "guven": round(guven * 100, 1)
+            "guven": round(guven * 100, 1),
+            "adaylar": adaylar,
         }
 
 if __name__ == "__main__":
+    import sys
+
+    # Elle deneme: python predict.py [urun]
+    urun = sys.argv[1] if len(sys.argv) > 1 else "domates"
     img = Image.open(BURASI / "test.jpg").convert("RGB")
-    print(tahmin_et_goruntu(img))
+    print(tahmin_et_goruntu(img, urun))

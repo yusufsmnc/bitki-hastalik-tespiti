@@ -155,3 +155,156 @@ def test_adaylar_azalan_sirada_ve_ilki_tahmin(logit_ver):
 
     assert guvenler == sorted(guvenler, reverse=True)
     assert sonuc["adaylar"][0]["hastalik"] == "Tomato_healthy"
+
+
+# --- İki eşikli karar kuralı -------------------------------------------
+
+def test_ayni_guvende_healthy_takilir_hastalik_takilmaz(logit_ver):
+    """Kuralın ASIL davranışı: aynı güven (0.75), farklı karar.
+
+    0.75 genel eşiği (0.70) geçer ama sağlıklı eşiğini (0.80) geçmez.
+    Gerekçe: hastalıklı yaprağa "sağlıklı" demek tedaviyi geciktirir.
+    """
+    izinli = urun_indeksleri("domates")
+
+    logit_ver(logitler_kur(0.75, DOMATES_SAGLIKLI, izinli))
+    saglikli = tahmin_et_goruntu(yaprak(), "domates")
+
+    logit_ver(logitler_kur(0.75, DOMATES_HASTALIK, izinli))
+    hastalik = tahmin_et_goruntu(yaprak(), "domates")
+
+    assert saglikli["durum"] == "emin_degil"
+    assert saglikli["en_yakin_tahmin"] == "Tomato_healthy"
+
+    assert hastalik["durum"] == "basarili"
+    assert hastalik["hastalik"] == "Tomato_Leaf_Mold"
+
+    # İkisinin güveni gerçekten aynı mıydı? Yoksa test başka bir şeyi
+    # ölçüyor olurdu.
+    assert saglikli["guven"] == pytest.approx(hastalik["guven"], abs=0.1)
+
+
+def test_healthy_yeterince_yuksek_guvende_basarili_olur(logit_ver):
+    """Sağlıklı eşiği bir duvar değil, daha yüksek bir çubuk: 0.85 geçer."""
+    logit_ver(logitler_kur(0.85, DOMATES_SAGLIKLI, urun_indeksleri("domates")))
+
+    sonuc = tahmin_et_goruntu(yaprak(), "domates")
+
+    assert sonuc["durum"] == "basarili"
+    assert sonuc["hastalik"] == "Tomato_healthy"
+
+
+def test_genel_esigin_altinda_hastalik_da_emin_degil_olur(logit_ver):
+    logit_ver(logitler_kur(0.65, DOMATES_HASTALIK, urun_indeksleri("domates")))
+
+    sonuc = tahmin_et_goruntu(yaprak(), "domates")
+
+    assert sonuc["durum"] == "emin_degil"
+
+
+def test_esik_her_urunde_ayni_sekilde_ayrisir(logit_ver):
+    """Kural domatese özel değil; üç üründe de aynı çalışmalı."""
+    for urun in predict.GECERLI_URUNLER:
+        izinli = urun_indeksleri(urun)
+        saglikli_idx = next(
+            i for i in izinli if "healthy" in predict.class_names[i].lower()
+        )
+        hastalik_idx = next(
+            i for i in izinli if "healthy" not in predict.class_names[i].lower()
+        )
+
+        logit_ver(logitler_kur(0.75, saglikli_idx, izinli))
+        assert tahmin_et_goruntu(yaprak(), urun)["durum"] == "emin_degil", urun
+
+        logit_ver(logitler_kur(0.75, hastalik_idx, izinli))
+        assert tahmin_et_goruntu(yaprak(), urun)["durum"] == "basarili", urun
+
+
+# --- Sıcaklık ölçekleme -------------------------------------------------
+
+def test_sicaklik_sonrasi_olasiliklar_bire_toplanir(logit_ver):
+    """Maskelenenler 0 olduğu için izinli adayların toplamı 1 olmalı.
+
+    Toplam 1 değilse maske softmax'tan SONRA uygulanmış demektir ve
+    güven skorları ölçülen değerlerle uyumsuz olur.
+    """
+    logit_ver(logitler_kur(0.80, BIBER_HASTALIK, urun_indeksleri("biber")))
+
+    sonuc = tahmin_et_goruntu(yaprak(), "biber")
+    toplam = sum(a["guven"] for a in sonuc["adaylar"])
+
+    # Biberin iki sınıfının ikisi de aday listesinde, yani tüm olasılık
+    # kütlesi burada. round(.., 1) yüzünden 0.1 tolerans veriyoruz.
+    assert toplam == pytest.approx(100.0, abs=0.2)
+
+
+def test_sicaklik_tahmin_sirasini_degistirmez(logit_ver):
+    """T'ye bölmek monoton bir dönüşüm: sıralamayı koruması gerekir.
+
+    Aynı logit'lerin T'li ve T'siz sıralamasını karşılaştırıyoruz.
+    """
+    izinli = urun_indeksleri("domates")
+    logitler = [50.0] * len(predict.class_names)
+    # İzinli sınıflara birbirinden AYRIK değerler ver ki sıralama net olsun.
+    for sira, i in enumerate(izinli):
+        logitler[i] = float(sira)
+
+    t_siz = torch.softmax(torch.tensor([[logitler[i] for i in izinli]]), dim=1)
+    t_li = torch.softmax(
+        torch.tensor([[logitler[i] for i in izinli]]) / predict.SICAKLIK, dim=1
+    )
+
+    assert torch.argsort(t_siz, descending=True).tolist() == \
+        torch.argsort(t_li, descending=True).tolist()
+
+    # Fonksiyonun kendi çıktısında da en yüksek logit kazanmalı.
+    logit_ver(logitler)
+    sonuc = tahmin_et_goruntu(yaprak(), "domates")
+    en_yuksek_logit_idx = max(izinli, key=lambda i: logitler[i])
+    tahmin = sonuc.get("hastalik") or sonuc["en_yakin_tahmin"]
+    assert tahmin == predict.class_names[en_yuksek_logit_idx]
+
+
+def test_sicaklik_guveni_dusurur(logit_ver):
+    """T > 1 olasılıkları düzleştirir; kalibrasyonun yönü bu.
+
+    Aynı logit'lerle T=1 ve T=1.95 karşılaştırılıyor.
+    """
+    izinli = urun_indeksleri("domates")
+    logitler = [50.0] * len(predict.class_names)
+    for i in izinli:
+        logitler[i] = 0.0
+    logitler[DOMATES_HASTALIK] = 4.0
+
+    logit_ver(logitler)
+    kalibreli = tahmin_et_goruntu(yaprak(), "domates")["guven"]
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(predict, "SICAKLIK", 1.0)
+        logit_ver(logitler)
+        kalibresiz = tahmin_et_goruntu(yaprak(), "domates")["guven"]
+
+    assert kalibreli < kalibresiz
+
+
+# --- Geçersiz ürün ------------------------------------------------------
+
+@pytest.mark.parametrize("kotu_urun", ["elma", "", "Domates", " domates ", "tomato"])
+def test_gecersiz_urun_hata_firlatir(kotu_urun):
+    """Katı davranış: büyük harf ve boşluk da geçersiz.
+
+    Tek istemci kendi arayüzümüz ve sabit değer gönderiyor; toleranslı
+    olmak gerçek bir istemci hatasını gizler.
+    """
+    with pytest.raises(ValueError) as hata:
+        tahmin_et_goruntu(yaprak(), kotu_urun)
+
+    # Hata mesajı ne yapılacağını söylemeli, sadece "geçersiz" dememeli.
+    for urun in predict.GECERLI_URUNLER:
+        assert urun in str(hata.value)
+
+
+def test_urun_parametresi_zorunlu():
+    """urun'u atlamak sessizce varsayılana düşmemeli, hata vermeli."""
+    with pytest.raises(TypeError):
+        tahmin_et_goruntu(yaprak())

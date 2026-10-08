@@ -45,10 +45,59 @@ yapilandirma = _yapilandirmayi_oku(YAPILANDIRMA_YOLU)
 CLASS_NAMES_YOLU = Path(os.getenv("CLASS_NAMES_PATH", BURASI / "class_names.json"))
 MODEL_YOLU = Path(os.getenv("MODEL_PATH", BURASI / yapilandirma["model_dosyasi"]))
 
+# --- Sınıflar ve ürün haritası ------------------------------------------
 with open(CLASS_NAMES_YOLU, encoding="utf-8") as f:
     class_names = json.load(f)
 num_classes = len(class_names)
 
+# Hangi sınıf hangi ürüne ait? Eşleme sınıf ADLARININ önekinden çıkarılır.
+URUN_ONEKLERI = {
+    "domates": "Tomato",
+    "patates": "Potato",
+    "biber": "Pepper",
+}
+
+
+def _urun_indekslerini_cikar(sinif_adlari):
+    """Her ürün için o ürüne ait sınıf indekslerini class_names'ten türetir.
+
+    İndeksleri elle yazmak, sınıf sırası değiştiğinde SESSİZCE yanlış sonuç
+    verir (maske yanlış sınıfları keser, hata hiç görünmez). Dosyadan
+    türetmek bu hatayı imkânsız kılar.
+    """
+    indeksler = {urun: [] for urun in URUN_ONEKLERI}
+
+    for i, ad in enumerate(sinif_adlari):
+        for urun, onek in URUN_ONEKLERI.items():
+            if ad.startswith(onek):
+                indeksler[urun].append(i)
+                break
+        else:
+            # Hiçbir ürüne ait olmayan sınıf: adlandırma değişmiş demektir
+            # (örn. yeni model "Bell_pepper..." diyor). Sessizce geçersek
+            # o sınıf hiçbir maskede görünmez ve asla tahmin edilemez.
+            raise RuntimeError(
+                f"'{ad}' sınıfı hiçbir ürüne eşlenemedi. Beklenen önekler: "
+                f"{', '.join(URUN_ONEKLERI.values())}."
+            )
+
+    for urun, liste in indeksler.items():
+        if not liste:
+            raise RuntimeError(
+                f"'{urun}' ürününe ait hiç sınıf bulunamadı ({CLASS_NAMES_YOLU}). "
+                "Ürün seçilse bile tahmin üretilemez."
+            )
+    return indeksler
+
+
+URUN_INDEKSLERI = _urun_indekslerini_cikar(class_names)
+
+# main.py ve testler geçerli ürün listesini buradan okur, kendi kopyasını
+# tutmaz: iki liste birbirinden ayrı düşerse hata bulmak zorlaşır.
+GECERLI_URUNLER = tuple(URUN_ONEKLERI)
+
+
+# --- Model --------------------------------------------------------------
 # Model uygulama başlarken bir kere yüklenir, her istekte değil.
 model = models.resnet18(weights=None)
 model.fc = nn.Linear(model.fc.in_features, num_classes)

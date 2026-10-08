@@ -1,3 +1,4 @@
+# UYARI: Bu script ESKİ karar kuralına göre ölçer -- ürün maskesi ve sıcaklık ölçekleme uygulamaz; güncel eşik ayarı Colab'daki Aşama 1 notebook'unda yapılıyor.
 """Güven eşiğini veriyle seçmek için ölçüm script'i.
 
 Ne yapar:
@@ -10,9 +11,10 @@ Neden gerekli:
   çok görüntüyü "emin değil"e atar (kapsama kaybı). Bu iki şey arasındaki
   dengeyi gözle görmeden seçmek keyfi olur -- tablo tam bunun için.
 
-  predict.py'deki GUVEN_ESIGI (0.95) bu script'le, 2026-09-29'da ölçülerek
-  seçildi. Script hâlâ gerekli: model veya veri değişince ölçüm tekrarlanmalı,
-  ve README'deki tablonun yeniden üretilebilir olması gerekiyor.
+  ESKİ eşik (0.95) bu script'le, 2026-09-29'da ölçülerek seçilmişti. O kural
+  artık yürürlükte değil: predict.py şimdi ürün maskesi + sıcaklık ölçekleme
+  kullanıyor ve eşikleri model_config.json'dan okuyor. Script tarihsel kayıt
+  olarak duruyor -- eski tablonun yeniden üretilebilir olması için.
 
 Nasıl çalıştırılır (bitki-backend/venv aktifken):
   python bitki-backend/tune_threshold.py

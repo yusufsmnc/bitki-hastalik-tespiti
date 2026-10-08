@@ -30,12 +30,25 @@ BACKEND = KOK / "bitki-backend"
 # predict.py ve main.py'yi import edebilmek için backend klasörünü yola ekle
 sys.path.insert(0, str(BACKEND))
 
-# Gerçek modeldeki gibi birkaç sınıf; isimler gerçek class_names.json ile
-# aynı olmak zorunda değil, sadece biçim olarak benzer olmalı.
+# Sahte sınıf listesi. İsimler gerçek class_names.json'dan alındı: predict.py
+# ürün eşlemesini sınıf ADLARININ önekinden ("Pepper"/"Potato"/"Tomato")
+# çıkarıyor, o yüzden biçim artık keyfi değil.
+#
+# Liste şu üç şartı sağlayacak şekilde kuruldu:
+#   - ÜÇ ÜRÜNÜN HEPSİ var -> predict.py import anında "bu ürüne ait hiç
+#     sınıf yok" diye hata vermez,
+#   - BİBERİN TAM 2 SINIFI var -> "aday sayısı ürünün sınıf sayısıyla
+#     sınırlı" davranışı test edilebilir (3 değil 2 aday),
+#   - her üründe bir "healthy" + bir hastalık var -> iki ayrı eşiğin
+#     (GUVEN_ESIGI / SAGLIKLI_ESIGI) ayrıştığı testler her ürün için kurulabilir.
+# İndeksler test dosyalarında kullanıldığı için yorumda yazılı.
 SAHTE_SINIFLAR = [
-    "Pepper__bell___healthy",
-    "Potato___Early_blight",
-    "Tomato_Leaf_Mold",
+    "Pepper__bell___Bacterial_spot",   # 0  biber   - hastalık
+    "Pepper__bell___healthy",          # 1  biber   - sağlıklı
+    "Potato___Early_blight",           # 2  patates - hastalık
+    "Potato___healthy",                # 3  patates - sağlıklı
+    "Tomato_Leaf_Mold",                # 4  domates - hastalık
+    "Tomato_healthy",                  # 5  domates - sağlıklı
 ]
 
 _GECICI_KLASOR = Path(tempfile.mkdtemp(prefix="sahte-model-"))
@@ -44,6 +57,10 @@ _GECICI_KLASOR = Path(tempfile.mkdtemp(prefix="sahte-model-"))
 def _sahte_ortam_kur():
     sinif_yolu = _GECICI_KLASOR / "class_names.json"
     sinif_yolu.write_text(json.dumps(SAHTE_SINIFLAR), encoding="utf-8")
+
+    # Sabit tohum: testler rastgele çıktıya dayanmamalı, ama ileride biri
+    # yanlışlıkla yine dayanırsa hata her çalıştırmada aynı çıksın.
+    torch.manual_seed(0)
 
     # predict.py'nin kurduğu mimarinin AYNISI, yoksa load_state_dict patlar.
     sahte_model = models.resnet18(weights=None)

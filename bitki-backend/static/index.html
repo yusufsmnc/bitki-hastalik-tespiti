@@ -156,7 +156,85 @@
     }
 
 
-    /* ===== 4. ANA EYLEM: FOTOĞRAF BUTONU ======================== */
+    /* ===== 4. ÜRÜN SEÇİMİ ======================================= */
+    /* Bu bölüm ekranda fotoğraf butonunun ÜSTÜNDE duruyor, çünkü sıra
+       bir tasarım tercihi değil: ürün seçilmeden fotoğraf gönderilemiyor.
+       Yanlış ürün seçimi modelin maskesini yanlış sınıflara kurar ve sonuç
+       "emin görünen yanlış" bir cevap olur -- elle denemede bir domates
+       yaprağı patates seçilerek gönderildiğinde model %90 güvenle
+       "Patates - Geç yanıklık" dedi. Bu yüzden seçim gizli bir ayar değil,
+       akışın ilk ve görünür adımı. */
+
+    .urun-butonlari {
+      display: flex;
+      flex-direction: column;  /* dikey: tek elle, başparmakla erişilir */
+      gap: 10px;
+    }
+
+    .urun-butonu {
+      width: 100%;
+      min-height: 56px;
+      padding: 14px 18px;
+      /* Üç sütunlu grid: işaret sütunları sabit genişlikte, ad ortada.
+         Böylece seçim değişip ✓ göründüğünde bitki adı yana KAYMAZ. */
+      display: grid;
+      grid-template-columns: 24px 1fr 24px;
+      align-items: center;
+      background: var(--kart);
+      color: var(--metin);
+      border: 2px solid var(--kenar);
+      border-radius: var(--kose);
+      /* <button> yazı tipini <body>'den miras ALMAZ; tarayıcının kendi
+         küçük sistem fontuna düşer. Elle geri veriyoruz. */
+      font-family: inherit;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Seçili hâl ÜÇ sinyalle belli: zemin rengi, kalın yeşil çerçeve ve
+       soldaki ✓ işareti. Sadece renge güvenmek renk körü kullanıcıyı
+       dışarıda bırakırdı (FRONTEND.md Bölüm 6). aria-pressed ise aynı
+       bilgiyi ekran okuyucuya söylüyor. */
+    .urun-butonu.secili {
+      background: var(--yesil);
+      color: #ffffff;        /* yeşil üstünde beyaz: 5.2:1, AA geçer */
+      border-color: var(--yesil);
+      font-weight: 700;
+    }
+
+    /* visibility:hidden, display:none DEĞİL: işaret yerini korur, yoksa
+       grid sütunu boşalır ve ad her seçimde oynar. */
+    .urun-butonu .isaret { visibility: hidden; }
+    .urun-butonu.secili .isaret { visibility: visible; }
+
+    .urun-butonu:focus-visible {
+      outline: 3px solid var(--yesil-acik);
+      outline-offset: 3px;
+    }
+
+    .urun-butonu:active { transform: scale(.98); }
+
+    /* Tahmin sürerken ürün değiştirilemez (sebebi script'te yazılı).
+       disabled ÖZELLİĞİNİ kullanmıyoruz: odak o an o butondaysa tarayıcı
+       odağı <body>'ye düşürür ve klavye kullanıcısı sayfada yerini
+       kaybeder. Soluklaştırıp aria-disabled ile bildiriyoruz, tıklamayı
+       da JS yutuyor. */
+    .urun-butonu.pasif { opacity: .5; cursor: default; }
+
+    /* Fotoğraf butonu neden pasif? Soluk görünüm tek başına bunu
+       söylemez; metinle yazıyoruz. Ürün seçilince gizlenir. */
+    .secim-uyarisi {
+      margin: 14px 0 0;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--metin);
+      text-align: center;
+    }
+
+
+    /* ===== 5. ANA EYLEM: FOTOĞRAF BUTONU ======================== */
 
     /* Dosya seçicinin kendisi her tarayıcıda farklı ve çirkin görünür,
        stil de kabul etmez. Bu yüzden onu görsel olarak gizleyip üstüne
@@ -183,6 +261,9 @@
       color: #ffffff;       /* yeşil üstünde beyaz kontrast 5.2:1 — AA geçer */
       border: none;
       border-radius: var(--kose);
+      /* Bu stil hem <label>'da hem gerçek bir <button>'da kullanılıyor
+         (onay kartındaki "gönder" düğmesi). <button> font'u miras almaz. */
+      font-family: inherit;
       font-size: 19px;
       font-weight: 600;
       text-align: center;
@@ -213,7 +294,7 @@
     }
 
 
-    /* ===== 5. ÖNİZLEME (Durum B) ================================ */
+    /* ===== 6. ÖNİZLEME (Durum B) ================================ */
 
     .kart-basligi {
       margin: 0 0 12px;
@@ -242,7 +323,7 @@
     }
 
 
-    /* ===== 6. YÜKLENİYOR (Durum B) ============================== */
+    /* ===== 7. YÜKLENİYOR (Durum B) ============================== */
 
     .yukleniyor-kart {
       display: flex;
@@ -273,7 +354,7 @@
     .yukleniyor-metin { margin: 0; font-size: 17px; font-weight: 600; }
 
 
-    /* ===== 7. SONUÇ KARTLARI (Durum C ve D) ===================== */
+    /* ===== 8. SONUÇ KARTLARI (Durum C ve D) ===================== */
     /* Durum rengi kartın SOL KENARINDA şerit olarak duruyor, kartın
        dolgusu olarak değil. Sebep: turuncu/gri zemine yazılan metin
        güneşte okunmaz. Böylece metin her zaman beyaz zeminde koyu kalır,
@@ -339,6 +420,51 @@
 
     .sonuc-mesaji { margin: 0; font-size: 17px; }
 
+    /* Hangi bitkiye göre karar verildiği HER sonuç kartında yazılı.
+       Bu bir süs değil, ölçülmüş bir riskin karşılığı: yanlış ürün
+       maskeyi yanlış sınıflara kurar, model yine yüksek güven verir ve
+       cevap emin görünür. Çiftçinin bunu fark edebileceği tek yer bu
+       satır -- o yüzden sonucun üstünde, gözün ilk değdiği yerde. */
+    .secili-bitki {
+      margin: 0 0 10px;
+      font-size: 15px;
+      color: var(--metin-soluk);
+    }
+
+    /* Aday listesi: eşiğin altında tek bir tahmin göstermek yerine en
+       olası sınıfları listeliyoruz. Ölçüm: eşik altındaki durumlarda
+       doğru cevap %88.4 oranında bu listenin içinde (CLAUDE.md Bölüm 1). */
+    .aday-basligi {
+      margin: 18px 0 8px;
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .aday-listesi {
+      margin: 0;
+      padding: 0;
+      /* Madde imi yok: satırları ayıran şey ince çizgiler. Ad solda,
+         yüzde sağda hizalı durunca liste tablo gibi okunuyor. */
+      list-style: none;
+    }
+
+    .aday-listesi li {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 0;
+      border-top: 1px solid var(--kenar);
+      font-size: 17px;
+    }
+
+    .aday-listesi li:last-child { border-bottom: 1px solid var(--kenar); }
+
+    .aday-yuzde { font-weight: 700; white-space: nowrap; }
+
+    /* Onay kartındaki ana düğme .ana-buton stilini paylaşıyor; orada
+       üst boşluk yok çünkü normalde kartın tek öğesi oluyor. */
+    #onay-gonder { margin-top: 16px; }
+
     /* CLAUDE.md dürüstlük kuralı: bu sistem tanı makinesi değil.
        Bu yüzden uyarı "küçük gri yasal not" gibi değil, sonucun bir
        parçası gibi duruyor — kendi çerçevesi ve okunur boyutu var. */
@@ -353,7 +479,7 @@
     }
 
 
-    /* ===== 8. İKİNCİL BUTONLAR ================================== */
+    /* ===== 9. İKİNCİL BUTONLAR ================================== */
     /* "Yeni Fotoğraf" / "Tekrar Dene": dokunma alanı ana butonla aynı
        rahatlıkta ama görsel ağırlığı daha az (içi boş, çerçeveli). */
 
@@ -382,7 +508,7 @@
     }
 
 
-    /* ===== 9. ALT NOT =========================================== */
+    /* ===== 10. ALT NOT ========================================== */
     /* Kapsam ve sınırlar kalıcı olarak ekranda. Sessiz ama her zaman orada. */
 
     .alt-not {
@@ -394,7 +520,7 @@
     }
 
 
-    /* ===== 10. SADECE EKRAN OKUYUCU İÇİN ======================== */
+    /* ===== 11. SADECE EKRAN OKUYUCU İÇİN ======================= */
     /* Gözle görünmez ama ekran okuyucunun okuduğu metin. display:none
        KULLANAMAYIZ: o öğeyi erişilebilirlik ağacından da siler, yani
        ekran okuyucu da görmez. Bu yüzden 1px'e küçültüp kırpıyoruz. */
@@ -432,7 +558,35 @@
 
   <main>
 
-    <!-- ===== DURUM A - BAŞLANGIÇ (başta görünen tek eylem) ===== -->
+    <!-- ===== DURUM A - 1. ADIM: ÜRÜN SEÇİMİ ===== -->
+    <!-- role="group" + aria-labelledby: ekran okuyucu bu üçünü bağımsız
+         butonlar olarak değil, "Hangi bitki?" sorusunun seçenekleri olarak
+         okur. aria-pressed hangisinin seçili olduğunu söyler; başta üçü de
+         "false", yani hiçbiri seçili değil. -->
+    <section class="kart" id="urun-alani">
+      <h2 class="kart-basligi" id="urun-basligi">Hangi bitki?</h2>
+
+      <div class="urun-butonlari" role="group" aria-labelledby="urun-basligi">
+        <!-- data-urun değerleri backend'in beklediği değerlerle BİREBİR
+             aynı olmalı (predict.py -> URUN_ONEKLERI anahtarları).
+             Farklı yazarsak sunucu 400 döner. -->
+        <button type="button" class="urun-butonu" data-urun="domates" aria-pressed="false">
+          <span class="isaret" aria-hidden="true">✓</span>
+          <span>Domates</span>
+        </button>
+        <button type="button" class="urun-butonu" data-urun="patates" aria-pressed="false">
+          <span class="isaret" aria-hidden="true">✓</span>
+          <span>Patates</span>
+        </button>
+        <button type="button" class="urun-butonu" data-urun="biber" aria-pressed="false">
+          <span class="isaret" aria-hidden="true">✓</span>
+          <span>Biber</span>
+        </button>
+      </div>
+    </section>
+
+
+    <!-- ===== DURUM A - 2. ADIM: FOTOĞRAF ===== -->
     <section class="kart" id="eylem-alani">
       <!-- accept="image/*": sadece resimler listelensin.
            capture="environment": telefonda doğrudan ARKA kamerayı açar. -->
@@ -444,6 +598,12 @@
       <label class="ana-buton" for="foto-secici" id="ana-buton">
         <span aria-hidden="true">📷</span> Fotoğraf Çek veya Yükle
       </label>
+
+      <!-- Ürün seçilene kadar görünür: butonun neden pasif olduğunu
+           SÖYLÜYOR. Soluk bir buton tek başına sebebini anlatmaz. -->
+      <p class="secim-uyarisi" id="secim-uyarisi">
+        Fotoğraf göndermek için önce yukarıdan bitkini seç.
+      </p>
 
       <p class="ipucu">En iyi sonuç için yaprağı yakından, net ve iyi ışıkta çek.</p>
     </section>
@@ -465,6 +625,36 @@
     </section>
 
 
+    <!-- ===== BİTKİ DEĞİŞTİ - ONAY ===== -->
+    <!-- Ürün değişince eski sonuç kartı gizlenir (artık seçili bitkiyle
+         uyuşmuyor, ekranda kalırsa kendisiyle çelişir) ve aynı fotoğrafı
+         yeni bitkiyle göndermek KULLANICIYA SORULUR.
+
+         Kendiliğinden göndermiyoruz, çünkü iki farklı niyet dışarıdan
+         birbirinin aynı görünüyor -- ikisinde de bir ürün düğmesine
+         basılır:
+           1) "yanlış bitki seçmişim, düzeltiyorum"  -> fotoğraf aynı kalır
+           2) "domatesi bitirdim, patatese geçiyorum" -> yeni fotoğraf gelir
+         Otomatik gönderim 2. durumda eski domates fotoğrafını patates
+         olarak yollar ve tam da kaçınmaya çalıştığımız hatayı üretir:
+         yanlış ürünle, emin görünen yanlış bir cevap. Sistem tahmin
+         etmek yerine soruyor. -->
+    <section class="kart sonuc-kart sonuc-emin-degil gizli" id="onay-alani" tabindex="-1">
+      <p class="durum-etiketi">
+        <span aria-hidden="true">!</span> Bitki değişti
+      </p>
+
+      <!-- İki metni de JS yazar: içinde seçilen bitkinin adı geçiyor. -->
+      <p class="sonuc-mesaji" id="onay-mesaji"></p>
+
+      <button type="button" class="ana-buton" id="onay-gonder"></button>
+
+      <button type="button" class="ikincil-buton" id="onay-yeni-foto">
+        <span aria-hidden="true">📷</span> Yeni fotoğraf çek
+      </button>
+    </section>
+
+
     <!-- ===== DURUM C - SONUÇ: BAŞARILI ===== -->
     <!-- İçindeki metinler ÖRNEKTİR; JS gerçek cevapla değiştirir.
          Sınıfı da (sonuc-hastalik / sonuc-saglikli) JS belirler.
@@ -472,6 +662,9 @@
          ama JS odağı buraya taşıyabilir. Sonucun duyurulmasını ve ekranın
          sonuca kaymasını bu sağlıyor. -->
     <section class="kart sonuc-kart sonuc-hastalik gizli" id="sonuc-basarili" tabindex="-1">
+      <!-- Sonucun hangi bitkiye göre verildiği en üstte. Metni JS yazar. -->
+      <p class="secili-bitki" id="secili-bitki-basarili"></p>
+
       <p class="durum-etiketi" id="durum-etiketi">
         <span aria-hidden="true">⚠</span> Hastalık belirtisi
       </p>
@@ -497,11 +690,20 @@
       <button type="button" class="ikincil-buton" id="yeni-foto-basarili">
         <span aria-hidden="true">🔄</span> Yeni Fotoğraf
       </button>
+
+      <!-- Fotoğrafı tekrar çekmeden bitkiyi düzeltmenin yolu. Kendisi
+           bir şey göndermiyor: ürün seçicisine götürüp odağı oraya
+           taşıyor, sonrası onay kartı akışıyla aynı. -->
+      <button type="button" class="ikincil-buton" id="bitki-degistir-basarili">
+        Bitkiyi değiştir
+      </button>
     </section>
 
 
     <!-- ===== DURUM C - SONUÇ: EMİN DEĞİL ===== -->
     <section class="kart sonuc-kart sonuc-emin-degil gizli" id="sonuc-emin-degil" tabindex="-1">
+      <p class="secili-bitki" id="secili-bitki-emin-degil"></p>
+
       <p class="durum-etiketi">
         <span aria-hidden="true">?</span> Emin değilim
       </p>
@@ -510,6 +712,14 @@
         Bu yaprağı net tanıyamadım. Daha yakın ve net bir fotoğraf çeker misiniz?
       </p>
 
+      <!-- Tek bir tahmin yerine aday LİSTESİ. Gerekçe: tek tahmin cevap
+           gibi görünür, liste ise belirsizliği açıkça gösterir. Eşiğin
+           altında doğru cevap %88.4 oranında bu listenin içinde. -->
+      <div id="aday-bolumu">
+        <p class="aday-basligi">Yaprak şunlardan biri olabilir:</p>
+        <ul class="aday-listesi" id="aday-listesi"></ul>
+      </div>
+
       <p class="durustluk-notu">
         Yaprak tek başına, çerçeveyi dolduracak kadar yakın ve gölgesiz olursa
         sonuç daha güvenilir olur.
@@ -517,6 +727,10 @@
 
       <button type="button" class="ikincil-buton" id="yeni-foto-emin-degil">
         <span aria-hidden="true">🔄</span> Yeni Fotoğraf
+      </button>
+
+      <button type="button" class="ikincil-buton" id="bitki-degistir-emin-degil">
+        Bitkiyi değiştir
       </button>
     </section>
 

@@ -18,9 +18,9 @@
 </p>
 
 <p>
-  Laboratuvar <b>~%99</b>
+  Laboratuvar <b>%97.64</b> <sub>(PlantVillage val)</sub>
   &nbsp;·&nbsp;
-  <b>Gerçek tarla ~%62</b>
+  <b>Saha %69.77</b> <sub>(PlantDoc, ürün maskeli)</sub>
   &nbsp;·&nbsp;
   3 ürün, 15 sınıf
   &nbsp;·&nbsp;
@@ -60,53 +60,122 @@ Bu bölüm başta duruyor, çünkü projeyi değerlendirirken ilk bilmeniz gerek
 bu. Bitki hastalığı tespiti literatüründe "%99 doğruluk" iddiaları yaygındır ve
 neredeyse hepsi **laboratuvar** rakamıdır. Bu projede ikisini de ölçtük:
 
-| Ortam | Doğruluk |
+Aşağıdaki tüm sayılar `best_model_v3_durust.pth` modeline aittir ve her birinin
+yanında hangi veri setinde ölçüldüğü yazılıdır.
+
+| Ortam | Top-1 |
 |---|---:|
-| Laboratuvar fotoğrafları (düz zemin, tek yaprak, kontrollü ışık) | ~%99 |
-| **Gerçek tarla fotoğrafları** (dağınık arka plan, gölge, açı) | **~%62** |
+| Laboratuvar — PlantVillage val, 3.089 görüntü (seçimde kullanılmadı) | %97.64 |
+| **Gerçek tarla, ürün maskesi olmadan** — PlantDoc test, 569 görüntü | **%57.64** |
+| **Gerçek tarla, ürün maskeli** — aynı PlantDoc test, 569 görüntü | **%69.77** |
 
 Aradaki bu uçurum bir hata değil, bu alanın bilinen ve zor problemi:
 laboratuvarda öğrenilen şey tarlada aynı işe yaramıyor. **Bu projenin asıl
-rakamı %62'dir.** Herhangi bir yerde "%99 doğrulukla hastalık tespiti" ifadesi
-görürseniz, o ifade yanlıştır.
+rakamı saha rakamıdır.** Herhangi bir yerde "%99 doğrulukla hastalık tespiti"
+ifadesi görürseniz, o ifade yanlıştır.
 
-### Peki %62 ile ne yapılır?
+### Ürün maskesi: çiftçi ne ektiğini biliyor
 
-Modeli olduğu gibi kullanmak, çiftçiye vakaların üçte birinden fazlasında
-yanlış bilgi vermek demekti. Bunun yerine sisteme **susmayı** öğrettik: model
-yeterince emin değilse tahmin yapmıyor, "bu yaprağı net tanıyamadım" diyor.
+Sistem kullanıcıya ürünü sorar (domates / patates / biber) ve seçilen ürünün
+dışındaki sınıfları softmax'tan **önce** eler. Model 15 sınıf arasından değil,
+o ürünün sınıfları arasından seçim yapar. PlantDoc test seti, 569 görüntü:
 
-Eşik keyfi seçilmedi, ölçüldü. 569 gerçek tarla fotoğrafı (PlantDoc test
-bölümü) üzerinde:
-
-| Güven eşiği | Kapsama (cevap verdiği oran) | Cevap verdiğinde isabet |
-|---:|---:|---:|
-| 0.80 | %58.3 | %73.8 |
-| 0.90 | %45.0 | %80.1 |
-| **0.95 (seçilen)** | **%36.6** | **%84.6** |
-| 0.97 | %30.2 | %87.8 |
-
-Seçim kuralı: *isabetin ~%85'e ulaştığı en düşük eşik.* 0.97 daha isabetli ama
-6.4 puan daha kapsama yakıyor; bu kazanç o bedeli karşılamıyor.
-
-Bedeli açıkça kabul ediyoruz: **fotoğrafların yaklaşık %63'ünde sistem cevap
-vermiyor.** Bu bir kusur değil, bilinçli bir takas — yanlış yönlendirmektense
-susmak.
+| Ölçüm | Maskesiz | Ürün maskeli |
+|---|---:|---:|
+| Top-1 | %57.64 | %69.77 |
+| Top-3 | %86.47 | %93.85 |
+| Makro F1 | 0.593 | 0.702 |
 
 > [!IMPORTANT]
-> **Bu rakamlar iyimser.** Eşik, yukarıdaki ölçümlerin yapıldığı *aynı* test
-> setine bakılarak seçildi. Yani %84.6 isabet, görülmemiş yeni fotoğraflarda
-> muhtemelen biraz daha düşük çıkar. Dürüst bir ölçüm için eşiğin ayrı bir
-> doğrulama setinde seçilip test setinde bir kez ölçülmesi gerekir. Bunu
-> [Yol haritası](#-yol-haritası) bölümünde ilk sıraya koyduk.
+> **Maskeli sayılar literatürdeki maskesiz sonuçlarla kıyaslanamaz.** Modele
+> dışarıdan bir bilgi (hangi ürün) veriliyor; bu, problemi kolaylaştırır.
+> Kıyaslamak isteyen maskesiz kolona bakmalı. Maskeli sayıların tamamı
+> **çiftçinin ürünü doğru seçtiği** varsayımına dayanır — yanlış seçimin
+> sonucu [Sınırlar](#sınırlar) bölümünde.
+
+### Kalibrasyon: güven skoru artık bir şey ifade ediyor
+
+Eğitilmiş ağlar tipik olarak aşırı özgüvenlidir: "%95 eminim" dediğinde
+%95 isabet etmez. Logitler softmax'tan önce `T = 1.95`'e bölünerek bu
+bastırıldı. Tahmini **değiştirmez**, yalnızca güven skorunu gerçeğe yaklaştırır.
+PlantDoc test seti, 569 görüntü:
+
+| | Kalibrasyon öncesi | Kalibrasyon sonrası |
+|---|---:|---:|
+| ECE (kalibrasyon hatası, düşük = iyi) | 15.41 | 5.17 |
+| Ortalama güven | %85.2 | %72.0 |
+| Gerçek doğruluk | %69.8 | %69.8 |
+
+Yani sistem eskiden ortalama %85 eminim derken %69.8 isabet ediyordu; şimdi
+%72 eminim diyor ve yine %69.8 isabet ediyor.
+
+### Karar kuralı: emin değilse susar
+
+Kalibre edilmiş olasılık **0.70**'in altındaysa sistem kesin cevap vermez,
+"bu yaprağı net tanıyamadım" der ve en olası 3 adayı listeler. Tahmin bir
+*sağlıklı* sınıfsa eşik daha sıkıdır: **0.80**. PlantDoc test seti, 569 görüntü:
+
+| Sonuç | Oran | İsabet |
+|---|---:|---:|
+| Kesin cevap verdi | %54.5 | %88.1 |
+| → bunlardan "sağlıklı" diyenler (n=36) | — | %83.3 |
+| "Emin değilim" dedi | %45.5 | doğru cevap ilk 3 adayın içinde: %88.4 |
+
+Bedeli açıkça kabul ediyoruz: **fotoğrafların %45.5'inde sistem kesin cevap
+vermiyor.** Bu bir kusur değil, bilinçli bir takas — yanlış yönlendirmektense
+susmak. Susarken de tamamen susmuyor: adayların içinde doğru cevabın bulunma
+oranı %88.4, yani liste çiftçiye yine iş görüyor.
+
+> [!NOTE]
+> **Eşiğin 0.95'ten 0.70'e düşmesi bir gevşetme değildir.** Ölçekler farklı:
+> eski 0.95 kalibre edilmemiş (aşırı özgüvenli) olasılıklar üzerindeydi, yeni
+> 0.70 ise `T` ile bastırılmış olasılıklar üzerinde. İki sayı doğrudan
+> karşılaştırılamaz. Eski kuralın kaydı
+> [yol haritası belgesinde](docs/model-yol-haritasi.md) duruyor.
+
+### Sınırlar
+
+Yukarıdaki sayılar şu sınırlar içinde geçerlidir:
+
+- **Yanlış ürün seçimi en büyük risk.** Test görüntüleri bilerek yanlış ürünle
+  değerlendirildiğinde (n=1.138) sistem **%55.3** oranında *emin görünen yanlış*
+  bir cevap üretti — maske doğru sınıfı kestiği için olasılık kalan sınıflara
+  dağılıyor ve güven yüksek çıkıyor. Şu anki önlem arayüzdedir: seçilen bitki
+  her sonuçta gösterilir ve ürün değiştirildiğinde fotoğraf kendiliğinden
+  yeniden gönderilmez, kullanıcıya sorulur. *(Planlanan: ölçülmüş bir otomatik
+  tutarlılık kontrolü — yakalama %82.8, yanlış alarm %4.6 — bir sonraki PR'da
+  eklenecek. Şu an sistemde **yok**.)*
+- **Eşik seçimi gürültülü.** `T = 1.95` ve 0.70 eşiği, PlantDoc eğitim
+  bölümünden ayrılmış **163 görüntülük** ayrı bir saha val setinde seçildi
+  (test setiyle phash karşılaştırılıp kopyaları temizlendi). 569'luk test seti
+  seçimde kullanılmadı, yalnızca raporlama için bir kez kullanıldı. 163 görüntü
+  az; eşik biraz farklı bir val setiyle biraz farklı çıkabilirdi.
+- **0.80 "sağlıklı" eşiği veriyle ayarlanmadı.** Bilinçli bir güvenlik kararı:
+  hastalıklı yaprağa "sağlıklı" demek tedaviyi geciktirir. Val setindeki
+  "sağlıklı" tahmin sayısı (5–17) ayrı bir eşik ayarlamaya yetmiyordu.
+- **Test etiketlerinin bir kısmı gürültülü.** Aynı fotoğrafın farklı veri
+  setlerinde farklı etiketlerle bulunduğu 40 çift tespit edildi (domates/patates
+  karışıklığı dahil). Yani gerçek doğruluk, ölçülen sayıdan hem yukarı hem aşağı
+  sapabilir.
+- **Tek test seti.** Tüm saha sayıları aynı 569 görüntülük PlantDoc bölümünden
+  geliyor. Başka bir bölgede, başka bir telefonla çekilmiş fotoğraflarda ne
+  olacağı ölçülmedi.
+- **Laboratuvar val'i bir test bölümü değil.** PlantVillage val'i (3.089) hiçbir
+  seçimde kullanılmadı, ama modelin epoch'u (8) saha val setinde seçildi.
+
+> [!TIP]
+> Sürüm sürüm ayrıntılı karşılaştırma tablosu (v3 → v4 → backbone yarışması)
+> **Faz 4'te güncellenecek**; şimdilik aşama aşama kayıt
+> [yol haritası belgesinde](docs/model-yol-haritasi.md) tutuluyor.
 
 ### Bu sistem ne DEĞİL
 
 - **Teşhis aracı değil.** Kesin tanı için ziraat mühendisine danışılmalı.
 - **Genel amaçlı bitki tanıyıcı değil.** Sadece 3 ürün ve 15 sınıf biliyor.
   Bir fasulye yaprağı gösterirseniz model bunu "bilmiyorum" diye reddedemez;
-  bildiği 15 sınıftan birine benzetmeye çalışır. Tek koruma güven eşiğidir.
-- **Tarla koşullarında güvenilir değil.** Yukarıdaki tabloya bakın.
+  seçtiğiniz ürünün sınıflarından birine benzetmeye çalışır. Tek koruma güven
+  eşiğidir.
+- **Tarla koşullarında güvenilir değil.** Yukarıdaki tablolara bakın.
 
 ---
 
@@ -117,15 +186,20 @@ Projenin bu noktaya kadar çözdüğü somut problemler:
 - **Laboratuvar–tarla uçurumunu görünür kıldık.** Üç veri setini (biri
   laboratuvar, ikisi gerçek tarla) birleştirip modeli ikisinde de ölçtük.
   Çoğu örnek projenin atladığı adım bu.
-- **Güven eşiğini veriyle seçtik.** `tune_threshold.py` ile kapsama/isabet
-  dengesini ölçüp eşiği gerekçeli biçimde belirledik; tahminî bir sayı değil.
-- **Sistemi "bilmiyorum" diyebilir hale getirdik.** Mimarinin en değerli
-  parçası bu.
+- **Ölçümü dürüst hale getirdik.** Checkpoint seçimi artık test setine değil
+  ayrı bir saha val setine bakıyor; eğitim verisiyle test seti arasındaki
+  kopyalar phash ile tarandı. Bulgular yeniden ölçüme zorladı —
+  ayrıntısı [yol haritasında](docs/model-yol-haritasi.md).
+- **Güven skorunu kalibre ettik.** Sıcaklık ölçekleme ve eşikler, test setinden
+  ayrı bir saha val setinde seçildi; test seti yalnızca bir kez raporlandı.
+- **Sistemi "bilmiyorum" diyebilir hale getirdik** ve susarken de boş
+  bırakmadık: en olası 3 adayı listeliyor.
 - **Uçtan uca çalışan bir zincir kurduk:** model → Python API → telefon
   uyumlu web arayüzü. Fotoğraf çekmekten sonucu görmeye kadar her adım çalışıyor.
 - **Model dosyası olmadan çalışan test altyapısı yazdık.** Model git'te yok
-  (45 MB), ama CI yine de her push'ta 41 testi çalıştırıyor.
-- **Sonuçları abartmadan raporladık.** Yukarıdaki tablo bunun kanıtı.
+  (~43 MB), ama CI yine de her push'ta 77 testi çalıştırıyor.
+- **Sonuçları abartmadan raporladık.** Yukarıdaki tablolar ve
+  [Sınırlar](#sınırlar) bölümü bunun kanıtı.
 
 ---
 
@@ -137,7 +211,7 @@ merkezindeki fikir: tek başına laboratuvar verisi tarlada işe yaramıyor.
 | Veri seti | Tür | Rolü |
 |---|---|---|
 | **PlantVillage** | Laboratuvar | Temiz, bol örnekli taban. Düz zeminde tek yaprak. |
-| **PlantDoc** | Gerçek tarla | Dağınık arka plan, doğal ışık. Eşik ölçümü de bu setle yapıldı. |
+| **PlantDoc** | Gerçek tarla | Dağınık arka plan, doğal ışık. Eşik ayarı ve saha ölçümleri bu setin **ayrı** bölümleriyle yapıldı (val 163 / test 569). |
 | **PlantWild** | Gerçek tarla | Ek tarla çeşitliliği. |
 
 ### Lisans uyarısı
@@ -165,9 +239,26 @@ depoda veri seti dosyası bulunmuyor.
 
 > [!NOTE]
 > Eğitim bu depoda yapılmıyor. Depo yalnızca *eğitilmiş modeli
-> kullanan* servisi içerir; eğitim script'i burada yok. `best_model_v3.pth`
-> (45 MB) boyutu nedeniyle git'e dahil edilmedi (bkz. [Kurulum](#-kurulum)).
-> Sınıf adlarını tutan küçük `class_names.json` ise depoda.
+> kullanan* servisi içerir; eğitim script'i burada yok.
+> `best_model_v3_durust.pth` (~43 MB) boyutu nedeniyle git'e dahil edilmedi
+> (bkz. [Kurulum](#-kurulum)). İki küçük künye dosyası ise depoda:
+> `class_names.json` (sınıf adları) ve `model_config.json` (model dosya adı,
+> sıcaklık, iki eşik).
+
+### Model künyesi: `model_config.json`
+
+Sıcaklık ve eşikler kodun değil **modelin** özelliğidir; üçü de bu belirli
+ağırlık dosyası üzerinde ölçüldü. Bu yüzden kodun içine gömülmek yerine
+model dosyasının yanında, ayrı bir künye dosyasında duruyorlar:
+
+```json
+{ "model_dosyasi": "...", "sicaklik": 1.95, "guven_esigi": 0.70, "saglikli_esigi": 0.80 }
+```
+
+> [!CAUTION]
+> Yeni bir model eğitilirse bu üç sayı da **yeniden ölçülmelidir.** Eski
+> değerleri yeni ağırlıklarla kullanmak, sistemin kalibre olduğunu sanarak
+> kalibre olmayan güven skorları göstermesine yol açar.
 
 ### Ön işlemede kritik kural
 
@@ -230,19 +321,23 @@ Listede olmayan bir sınıf adı gelirse (örn. model değişirse) uygulama
 ### Gereksinimler
 
 - Python 3.14 (CI bu sürümle çalışıyor; 3.11+ muhtemelen sorunsuzdur)
-- Model dosyası: `best_model_v3.pth` (`class_names.json` depoda zaten var)
+- Model dosyası: `best_model_v3_durust.pth` (künye dosyaları depoda zaten var)
 
 ### 1. Model dosyasını edinin
 
-**`best_model_v3.pth` git deposunda yoktur** — 45 MB olduğu için
+**`best_model_v3_durust.pth` git deposunda yoktur** — ~43 MB olduğu için
 `.gitignore`'dadır. Dosyayı proje sahibinden edinip `bitki-backend/`
-klasörünün içine koyun. Yanındaki `class_names.json` depoyla birlikte gelir:
+klasörünün içine koyun. Yanındaki iki künye dosyası depoyla birlikte gelir:
 
 ```
 bitki-backend/
-├── best_model_v3.pth           (siz koyacaksınız)
-└── class_names.json            (depoda var)
+├── best_model_v3_durust.pth    (siz koyacaksınız)
+├── class_names.json            (depoda var)
+└── model_config.json           (depoda var)
 ```
+
+Hangi dosyanın yükleneceğini `model_config.json` içindeki `model_dosyasi`
+alanı söyler; dosya adı değişirse orayı güncellemek yeterlidir.
 
 > [!WARNING]
 > `class_names.json`'daki sınıf sırası, modelin eğitildiği sırayla birebir
@@ -284,6 +379,12 @@ geliştirme içindir.
 
 Arayüz: **http://127.0.0.1:8000**
 
+Arayüzde ilk adım **bitki seçimi** (domates / patates / biber); seçim
+yapılmadan fotoğraf düğmesi açılmaz. Seçilen bitki her sonuç kartında
+görünür — yanlış seçim en olası kullanıcı hatası ve farkedilmesinin yolu
+bu satır. Bitkiyi değiştirirseniz fotoğraf kendiliğinden yeniden
+gönderilmez, önce size sorulur.
+
 ### Telefondan erişim
 
 Aynı Wi-Fi ağındaki telefondan test etmek için sunucuyu tüm arayüzlere açın:
@@ -310,18 +411,39 @@ isteyebilir.
 
 ### `/predict` kullanımı
 
+**İki form alanı da zorunludur:** `file` (resim) ve `urun`
+(`domates` / `patates` / `biber`).
+
 ```bash
-curl -X POST -F "file=@yaprak.jpg" http://127.0.0.1:8000/predict
+curl -X POST \
+  -F "file=@yaprak.jpg" \
+  -F "urun=domates" \
+  http://127.0.0.1:8000/predict
 ```
 
-Model yeterince eminse (`guven` ≥ %95):
+> [!IMPORTANT]
+> `urun` opsiyonel değildir ve olmayacaktır. Sıcaklık ve eşikler yalnızca
+> **ürün maskesi uygulanmış** çıktılar üzerinde ölçüldü; maskesiz bir yol
+> açmak bu sayıları geçersiz kılar ve sistem kalibre olmadığı hâlde kalibre
+> güven skorları göstermeye başlar.
+
+Kalibre edilmiş güven eşiği geçiyorsa (0.70; tahmin *sağlıklı* bir sınıfsa
+0.80) — *aşağıdaki iki örnekteki sayılar cevabın **biçimini** göstermek için
+yazılmış temsilî değerlerdir, ölçüm değildir; gerçek ölçümler
+[Önce dürüst tablo](#-önce-dürüst-tablo) bölümünde:*
 
 ```json
 {
   "durum": "basarili",
+  "urun": "domates",
   "hastalik": "Tomato_Leaf_Mold",
   "hastalik_tr": "Domates - Yaprak küfü",
-  "guven": 97.3
+  "guven": 91.4,
+  "adaylar": [
+    { "hastalik": "Tomato_Leaf_Mold", "hastalik_tr": "Domates - Yaprak küfü", "guven": 91.4 },
+    { "hastalik": "Tomato_Early_blight", "hastalik_tr": "Domates - Erken yanıklık", "guven": 4.1 },
+    { "hastalik": "Tomato_healthy", "hastalik_tr": "Domates - Sağlıklı", "guven": 1.8 }
+  ]
 }
 ```
 
@@ -330,24 +452,36 @@ Emin değilse:
 ```json
 {
   "durum": "emin_degil",
+  "urun": "domates",
   "mesaj": "Bu yaprağı net tanıyamadım. Daha yakın ve net bir fotoğraf çeker misiniz?",
   "en_yakin_tahmin": "Tomato_Leaf_Mold",
   "en_yakin_tahmin_tr": "Domates - Yaprak küfü",
-  "guven": 92.2
+  "guven": 64.1,
+  "adaylar": [ "...en olası en fazla 3 sınıf..." ]
 }
 ```
 
-`en_yakin_tahmin` alanları bilgi amaçlıdır ve **arayüzde bilerek
-gösterilmez**: sistem "tanıyamadım" dedikten sonra bir tahmin fısıldarsa
-kullanıcı onu cevap sanar.
+Alanlarla ilgili iki tasarım kararı:
+
+- **`adaylar`** her iki durumda da döner; en olası *en fazla* 3 sınıf. Maskelenen
+  sınıflar listeye girmez, bu yüzden biberde (2 sınıf) 2 aday döner. `guven`
+  birimi diğer `guven` alanıyla aynı: yüzde, 1 ondalık.
+- **`en_yakin_tahmin` alanları arayüzde bilerek gösterilmez.** Sistem
+  "tanıyamadım" dedikten sonra *tek* bir tahmin fısıldarsa kullanıcı onu cevap
+  sanar; liste ise belirsizliği açıkça gösterir. Arayüz `adaylar`'ı gösterir.
 
 ### Hata kodları
 
 | Kod | Anlamı |
 |:---:|---|
 | 400 | Dosya okunabilir bir resim değil (bozuk, yarım veya resim olmayan) |
+| 400 | `urun` geçersiz (örn. `elma`) — okunur bir Türkçe `detail` metniyle |
 | 413 | Dosya 10 MB sınırını aşıyor |
-| 422 | `file` alanı hiç gönderilmemiş |
+| 422 | `file` veya `urun` alanı hiç gönderilmemiş |
+
+Geçersiz ürün için FastAPI'nin otomatik 422'si yerine elle 400 döndürülüyor:
+422'nin `detail` alanı bir *liste*dir, arayüz ise kullanıcıya gösterebileceği
+okunur bir *metin* bekliyor.
 
 Hatalar Türkçe bir `detail` alanıyla döner; arayüz bu metni doğrudan
 kullanıcıya gösterir.
@@ -358,30 +492,37 @@ kullanıcıya gösterir.
 
 ```mermaid
 flowchart TD
-    A["Telefon · fotoğraf seç"]
+    A["Telefon · ürün seç + fotoğraf"]
 
     subgraph api["FastAPI &middot; main.py"]
-        B["boyut kontrolü (10 MB)"]
+        B["ürün geçerli mi?"]
+        B2["boyut kontrolü (10 MB)"]
         C["EXIF yönünü düzelt"]
     end
 
     subgraph tahmin["predict.py"]
         E["224×224 + normalize<br/><i>eğitimle birebir aynı</i>"]
-        G["ResNet18 → softmax"]
-        H{"güven ≥ %95?"}
+        G["ResNet18 → logitler"]
+        M["ürün maskesi<br/><i>diğer sınıflar → -inf</i>"]
+        T["÷ T = 1.95 → softmax"]
+        H{"güven ≥ eşik?<br/>0.70 · sağlıklıysa 0.80"}
     end
 
-    S["basarili<br/>hastalık + güven %"]
-    D["emin_degil<br/>daha iyi fotoğraf iste"]
+    S["basarili<br/>hastalık + güven % + adaylar"]
+    D["emin_degil<br/>adayları listele,<br/>daha iyi fotoğraf iste"]
     X["HTTP 400 / 413"]
-    Z["Telefon · sonucu göster"]
+    Z["Telefon · seçilen bitki + sonuç"]
 
     A -->|POST /predict| B
-    B --> C
-    B -.->|bozuk / çok büyük| X
+    B -.->|geçersiz ürün| X
+    B --> B2
+    B2 -.->|bozuk / çok büyük| X
+    B2 --> C
     C --> E
     E --> G
-    G --> H
+    G --> M
+    M --> T
+    T --> H
     H -->|evet| S
     H -->|hayır| D
     S --> Z
@@ -389,13 +530,18 @@ flowchart TD
     X -.-> Z
 ```
 
-Tasarımın üç önemli ayrıntısı:
+Tasarımın önemli ayrıntıları:
 
-1. **Model uygulama başlarken bir kere yüklenir**, her istekte değil. Her
+1. **Maske softmax'tan ÖNCE uygulanır.** Sonra uygulansaydı kesilen sınıfların
+   olasılığı pay toplamına girer, kalan olasılıklar 1'e toplanmaz ve güven
+   skorları ölçülen değerlerle uyumsuz olurdu.
+2. **Ürün kontrolü dosya okunmadan önce yapılır.** 8 MB'lık bir fotoğrafı
+   belleğe alıp sonra "ürün yanlış" demek boşa iş.
+3. **Model uygulama başlarken bir kere yüklenir**, her istekte değil. Her
    istekte yüklemek tahmini saniyelerce yavaşlatırdı.
-2. **EXIF yönü düzeltilir.** Telefonlar fotoğrafı döndürmek yerine dosyaya
+4. **EXIF yönü düzeltilir.** Telefonlar fotoğrafı döndürmek yerine dosyaya
    "bu resim dönük" etiketi yazar. Uygulanmazsa model yan yatmış bir yaprak görür.
-3. **`/predict` `async def` değil, düz `def`.** Tahmin CPU'yu meşgul eden
+5. **`/predict` `async def` değil, düz `def`.** Tahmin CPU'yu meşgul eden
    senkron bir iş; `async` içinde olsaydı tahmin bitene kadar sunucu başka
    hiçbir isteğe cevap veremezdi.
 
@@ -414,16 +560,18 @@ bitki-hastalik-tespiti/
 ├── tests/
 │   ├── conftest.py             CI için sahte model üretir
 │   ├── test_predict.py         tahmin fonksiyonu + güven eşiği
+│   ├── test_kalibrasyon.py     ürün maskesi, sıcaklık, iki eşik
 │   ├── test_main.py            endpoint'ler (TestClient ile)
 │   ├── test_sozlesme.py        arayüz ↔ backend alan adları
 │   └── test_e2e.py             gerçek uvicorn sunucusuyla uçtan uca
 └── bitki-backend/
     ├── main.py                 FastAPI uygulaması
     ├── predict.py              model yükleme + tahmin
-    ├── tune_threshold.py       güven eşiği ölçüm script'i
+    ├── tune_threshold.py       ESKİ kurala göre ölçer (tarihsel)
     ├── static/index.html       telefon uyumlu arayüz
-    ├── best_model_v3.pth       (git'te YOK)
-    └── class_names.json        sınıf adları (modelle eşleşmeli)
+    ├── best_model_v3_durust.pth  (git'te YOK)
+    ├── class_names.json        sınıf adları (modelle eşleşmeli)
+    └── model_config.json       sıcaklık ve iki eşik
 ```
 
 ---
@@ -433,9 +581,9 @@ bitki-hastalik-tespiti/
 ```bash
 pip install -r requirements-dev.txt
 
-pytest                  # 41 test
-pytest -m "not e2e"     # 29 hızlı test
-pytest -m e2e           # 12 uçtan uca test (gerçek sunucu başlatır)
+pytest                  # 77 test
+pytest -m "not e2e"     # 63 hızlı test
+pytest -m e2e           # 14 uçtan uca test (gerçek sunucu başlatır)
 ```
 
 Testler **gerçek modele bağlı değildir.** `tests/conftest.py` aynı mimaride
@@ -443,11 +591,12 @@ Testler **gerçek modele bağlı değildir.** `tests/conftest.py` aynı mimaride
 ortam değişkenleriyle `predict.py`'ye gösterir. Ölçülen şey modelin isabeti
 değil — rastgele ağırlıkla bu zaten ölçülemez — kodun doğru çalışmasıdır.
 
-Dört test dosyası dört ayrı soruyu yanıtlar:
+Her test dosyası ayrı bir soruyu yanıtlar:
 
 | Dosya | Soru |
 |---|---|
 | `test_predict.py` | Tahmin fonksiyonu sözleşmeye uyuyor mu? Eşik mantığı doğru mu? |
+| `test_kalibrasyon.py` | Maske softmax'tan önce mi uygulanıyor? Sıcaklık ve iki eşik doğru mu işliyor? |
 | `test_main.py` | Endpoint'ler doğru kodları ve gövdeleri döndürüyor mu? |
 | `test_sozlesme.py` | Arayüzün okuduğu alanlar backend'in gönderdikleriyle uyuşuyor mu? |
 | `test_e2e.py` | Uygulama gerçekten ayağa kalkıyor ve ağ üzerinden cevap veriyor mu? |
@@ -469,13 +618,16 @@ kurulumu, hızlı testler, sonra uçtan uca testler. Tipik süre ~1 dakika.
 
 Önceliklendirilmiş liste — üsttekiler projenin güvenilirliği için daha kritik.
 
-### 1. Eşiği dürüst biçimde yeniden ölç (en öncelikli)
+### 1. Eşiği dürüst biçimde yeniden ölç — ✅ yapıldı
 
-Mevcut eşik (0.95), isabet rakamlarının ölçüldüğü **aynı** test setine
-bakılarak seçildi. Bu, raporlanan %84.6 isabeti iyimser kılıyor. Doğrusu:
-veriyi eğitim / doğrulama / test diye üçe ayırmak, eşiği doğrulama setinde
-seçmek ve test setinde **bir kez** ölçmek. Bu yapılana kadar isabet rakamına
-temkinli yaklaşılmalı.
+Eski eşik, isabet rakamlarının ölçüldüğü *aynı* test setine bakılarak
+seçilmişti. Artık sıcaklık ve eşikler 163 görüntülük **ayrı** bir saha val
+setinde seçiliyor; 569'luk test seti yalnızca bir kez raporlandı. Kayıt:
+[yol haritası, Aşama 0–1](docs/model-yol-haritasi.md).
+
+**Sıradaki iş — ürün tutarlılık kontrolü.** Yanlış ürün seçimi şu an en büyük
+risk ([Sınırlar](#sınırlar)); otomatik bir kontrol ölçüldü ve bir sonraki PR'da
+eklenecek. Şu an sistemde yok.
 
 ### 2. Kapsam dışı yaprakları reddet
 
@@ -485,7 +637,7 @@ eşiği ve bu yeterli değil. Yapılabilecekler: eğitime "diğer/bilinmeyen"
 sınıfı eklemek, out-of-distribution tespiti, ya da önce "bu bir yaprak mı"
 diye bakan ikinci bir model.
 
-### 3. Tarla doğruluğunu yükselt (%62 → ?)
+### 3. Tarla doğruluğunu yükselt (ürün maskeli %69.77 → ?)
 
 Asıl darboğaz bu. Denenebilecekler: daha agresif veri artırma (augmentation)
 — arka plan değiştirme, gölge/bulanıklık ekleme; daha fazla gerçek tarla
@@ -502,7 +654,8 @@ elma) eklenebilir. Her yeni ürün yeni veri ve yeniden eğitim demek.
 
 ### 5. Kullanıcı deneyimi
 
-- İlk 3 tahmini güvenleriyle göstermek (tek cevap yerine)
+- ~~İlk 3 tahmini güvenleriyle göstermek (tek cevap yerine)~~ — ✅ yapıldı
+  (`adaylar`, "emin değilim" durumunda)
 - Tespit edilen hastalık için kısa bilgi ve mücadele önerisi
 - Çevrimdışı çalışma (PWA) — tarlada internet zayıf olabilir
 - Fotoğraf çekerken canlı yönlendirme ("yaprağa yaklaş", "gölgeden çık")

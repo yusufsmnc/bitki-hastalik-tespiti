@@ -11,23 +11,62 @@ Yaprak fotoğrafından bitki hastalığı tespiti yapan bir sistem. Hedef kullan
 - **Kapsam:** 3 ürün, 15 sınıf (domates, patates, biber — sağlıklı + çeşitli hastalıklar).
 - **Model:** ResNet18, transfer learning + fine-tuning ile eğitildi (PyTorch).
 - **Eğitim verisi:** PlantVillage (laboratuvar) + PlantDoc (gerçek tarla) + PlantWild (gerçek tarla) birleştirilerek.
-- **Model dosyası:** `best_model_v3.pth` **git'te YOK** (`.gitignore`'da, boyut nedeniyle). Google Drive'da tutuluyor; kullanıcı yerelde `bitki-backend/` içine koydu.
+- **Model dosyası:** `best_model_v3_durust.pth` **git'te YOK** (`.gitignore`'da, boyut nedeniyle). Google Drive'da tutuluyor; kullanıcı yerelde `bitki-backend/` içine koydu. Eski `best_model_v3.pth` da yerelde duruyor (geri dönüş kopyası), artık kullanılmıyor.
 - **`class_names.json` git'te VAR** (407 bayt, sınıf adları). Sınıf sırası modelle birebir eşleşmeli: yeni model gelirse bu dosya da birlikte güncellenir.
+- **`model_config.json` git'te VAR** (model dosya adı, sıcaklık, iki eşik). Bu sayılar kodun değil **modelin** özelliği — hepsi bu belirli ağırlık dosyası üzerinde ölçüldü. Yeni model gelirse üçü birlikte yeniden ölçülür.
+
+### Karar kuralı: ürün maskesi + kalibrasyon
+
+1. **Ürün maskesi.** Kullanıcı ürünü seçer (`domates` / `patates` / `biber`); seçilen ürünün dışındaki sınıfların logitleri `-inf` yapılır. Maske **softmax'tan ÖNCE** uygulanır — sonra uygulanırsa kesilen sınıfların olasılığı pay toplamına girer, kalan olasılıklar 1'e toplanmaz ve güven skorları ölçülen değerlerle uyumsuz olur.
+2. **Sıcaklık ölçekleme.** Logitler softmax'tan önce `T = 1.95`'e bölünür. Tahmini **değiştirmez** (bölme sıralamayı bozmaz), sadece aşırı özgüvenli olasılıkları bastırıp güven skorunu gerçek isabetle uyumlu hale getirir.
+3. **İki eşik.** En yüksek olasılık `>= 0.70` ise kesin cevap. Tahmin bir `healthy` sınıfsa daha sıkı eşik: `0.80`. Altında "emin değilim" denir ve en olası 3 aday gösterilir.
+4. Üçünün değerleri `model_config.json`'da. **Eşik eskiden 0.95'ti, şimdi 0.70 — bu bir GEVŞETME DEĞİL:** 0.95 kalibre edilmemiş (aşırı özgüvenli) olasılıklar üzerindeydi, 0.70 ise `T` ile bastırılmış olasılıklar üzerinde. Ölçekler farklı, sayıları doğrudan karşılaştırma.
 
 ### Dürüst performans tablosu (ASLA abartma)
-- Laboratuvar test doğruluğu: ~%99
-- **Gerçek tarla test doğruluğu: ~%62** — asıl rakam bu.
-- Bu bir "tanı makinesi" değil, **sınırlarını bilen bir karar-destek asistanı**. Güven eşiği altında "bu yaprağı net tanıyamadım, daha iyi fotoğraf çek" der.
-- Herhangi bir metinde (README, arayüz, yorum) "%99 doğrulukla hastalık tespiti" gibi abartılı iddia YAZMA. Gerçek sınırları (laboratuvar-tarla uçurumu, %62, sadece 3 ürün) dürüstçe belirt.
+
+`best_model_v3_durust.pth` ölçümleri (aksi yazılmayan satırlar: PlantDoc **saha** testi, 569 görüntü):
+
+| Ölçüm | Değer |
+|---|---|
+| Laboratuvar (PlantVillage val, 3.089, seçimde kullanılmadı) | %97.64 |
+| Top-1, ürün maskesi **olmadan** | %57.64 |
+| Top-1, ürün maskesi **ile** | %69.77 |
+| Kesin cevapların (`basarili`) isabeti | %88.1 |
+| "Sağlıklı" kesin cevaplarının isabeti | %83.3 |
+| Eşik altında (`emin_degil`) doğru cevabın adaylar içinde olma oranı | %88.4 |
+
+**Laboratuvar ile maskesiz saha arasındaki fark (%97.6 → %57.6) yeni modelde de sürüyor.** "Dürüst" model uçurumu kapatmadı; onu görünür kıldı ve ürün maskesi + kalibrasyonla yönetilebilir hale getirdi.
+
+**Bu sayıları yazarken bağlamını da ver — tek başına aktarılırsa yanıltıcı olur:**
+
+- `T = 1.95` ve `0.70` eşiği, PlantDoc **eğitim** bölümünden ayrılmış **163 görüntülük ayrı saha val setinde** seçildi; test setiyle phash karşılaştırılıp kopyaları temizlendi. 569 görüntülük test seti seçimde kullanılmadı, sadece raporlama için bir kez kullanıldı.
+- `0.80` "sağlıklı" eşiği **veriyle ayarlanmadı** — bilinçli bir güvenlik kararı: hastalıklı yaprağa "sağlıklı" demek tedaviyi geciktirir, bu hatayı zorlaştırmak istedik. Val'da "sağlıklı" tahmini sayısı 5–17 arasındaydı; ayrı bir eşik ayarlamaya yetmez.
+- **Kalan sınırlar:** val seti küçük (163) olduğu için eşik seçimi gürültülü; modelin epoch'u (8) da aynı saha val setinde seçildi — yani laboratuvar val'i (PlantVillage, 3.089) hiçbir seçimde kullanılmadı, bir doğrulama bölümüdür ama test bölümü değildir; test sonuçları tek bir 569 görüntülük setten geliyor; test etiketlerinin bir kısmının gürültülü olduğu bulundu.
+- **Varsayım:** çiftçinin ürünü **doğru seçtiği** varsayılıyor. Yanlış ürün seçilirse maske doğru sınıfı keser ve yukarıdaki sayılar geçersizdir.
+
+Diğer dürüstlük kuralları:
+
+- Bu bir "tanı makinesi" değil, **sınırlarını bilen bir karar-destek asistanı**. Güven eşiği altında "bu yaprağı net tanıyamadım, daha iyi fotoğraf çek" der ve adayları listeler.
+- Herhangi bir metinde (README, arayüz, yorum) "%99 doğrulukla hastalık tespiti" gibi abartılı iddia YAZMA. Gerçek sınırları (sadece 3 ürün, saha doğruluğu, ürün seçimi varsayımı) dürüstçe belirt.
+- **Laboratuvar-tarla uçurumu:** önceki modelde (`best_model_v3`) laboratuvar ~%99, gerçek tarla ~%62 ölçülmüştü — uçurumun somut kanıtı bu. Yeni model için laboratuvar rakamı ölçülmedi; **uydurma**, yukarıdaki tabloda olmayan bir sayı yazma.
 
 ---
 
 ## 2. Şu anki durum (tamamlanan)
 
-- `bitki-backend/predict.py` — model yükleme (script başında, bir kere) + `tahmin_et_goruntu(img)` fonksiyonu. Görüntü nesnesi alır, softmax ile güven skoru hesaplar, güven eşiği (`GUVEN_ESIGI` = 0.95, Faz 2'de veriyle seçildi) altında "emin_degil" döndürür.
-- `bitki-backend/main.py` — FastAPI. `/health` ve `/predict` (dosya yükleyip tahmin) endpoint'leri çalışıyor. `/predict` EXIF yönünü düzeltir, bozuk dosyaya 400, 10 MB üstüne 413 döner.
+- `bitki-backend/predict.py` — model ve ayar yükleme (script başında, bir kere) + `tahmin_et_goruntu(img, urun)` fonksiyonu. Görüntü nesnesi ve ürün adı alır; ürün maskesi → `T`'ye bölme → softmax sırasıyla olasılık hesaplar, eşiğin altında "emin_degil" döndürür. Geçersiz ürün için `ValueError` fırlatır. Ayarlar `model_config.json`'dan okunur, modül sabitlerine (`SICAKLIK`, `GUVEN_ESIGI`, `SAGLIKLI_ESIGI`) atanır. Ürün → sınıf eşlemesi `class_names.json`'daki adların önekinden türetilir (`Tomato`/`Potato`/`Pepper`), elle yazılmaz.
+- `bitki-backend/main.py` — FastAPI. `/health` ve `/predict` endpoint'leri çalışıyor. `/predict` EXIF yönünü düzeltir, bozuk dosyaya 400, 10 MB üstüne 413 döner.
+- `bitki-backend/static/index.html` — telefon arayüzü (Faz 3). Akışın ilk adımı **ürün seçimi**: üç düğme (Domates/Patates/Biber), biri seçilene kadar fotoğraf düğmesi pasif ve nedeni metinle yazılı. İstekte `urun` alanı gönderilir. Her sonuç kartında **"Seçilen bitki: …"** satırı görünür (`veri.urun`) — yanlış ürün seçimi en olası kullanıcı hatası ve çiftçinin bunu fark etmesinin yolu bu satır. `emin_degil` durumunda **aday listesi** gösterilir (Türkçe adlar + tam sayı yüzdeler), `en_yakin_tahmin` gösterilmez.
+- **Ürün değişirse istek KENDİLİĞİNDEN gönderilmez.** Eski sonuç kartı gizlenir (artık seçili bitkiyle çelişir) ve fotoğraf hâlâ eldeyse bir onay kartı çıkar: "Bu fotoğrafı <Bitki> olarak gönder" / "Yeni fotoğraf çek". Gerekçe: "yanlış bitki seçtim, düzeltiyorum" ile "bu bitkiyi bitirdim, diğerine geçiyorum" niyeti dışarıdan aynı görünür (ikisinde de bir ürün düğmesine basılır); otomatik gönderim ikinci durumda eski fotoğrafı yeni bitki olarak yollar ve tam da kaçınmak istediğimiz hatayı üretir. Sonuç kartlarındaki "Bitkiyi değiştir" düğmesi yalnızca ürün seçicisine götürür, istek göndermez. `tests/test_sozlesme.py` bu YOKLUĞU da test ediyor.
 - Git deposu kurulu, GitHub'a bağlı: `yusufsmnc/bitki-hastalik-tespiti`.
 - `requirements.txt` + `requirements-dev.txt` (depo kökünde), `.gitignore`, testler (`tests/`) ve CI (`.github/workflows/ci.yml`) hazır.
+
+#### `/predict` sözleşmesi
+- **İstek:** `file` (resim) + **`urun`** (`domates` / `patates` / `biber`) — ikisi de **ZORUNLU** form alanı. Eksik alan → 422 (FastAPI'nin kendi doğrulaması). Geçersiz ürün değeri → **400** + okunur Türkçe `detail` metni (422'nin `detail`'i liste döner, arayüz metin bekliyor).
+- **Cevap (`durum: "basarili"`):** `durum`, `urun`, `hastalik`, `hastalik_tr`, `guven`, `adaylar`
+- **Cevap (`durum: "emin_degil"`):** `durum`, `urun`, `mesaj`, `en_yakin_tahmin`, `en_yakin_tahmin_tr`, `guven`, `adaylar`
+- **`adaylar`:** en olası en fazla 3 sınıf, her biri `{"hastalik", "hastalik_tr", "guven"}`. `guven` birimi diğer `guven` alanıyla aynı: yüzde, 1 ondalık. Maskelenmiş sınıflar listeye girmez — biberin 2 sınıfı olduğu için biberde 2 aday döner.
+- Arayüzde `en_yakin_tahmin` **gösterilmez**, `adaylar` gösterilir: tek bir tahmin cevap gibi görünür, liste ise belirsizliği açıkça gösterir (eşik altında doğru cevap %88.4 oranında adayların içinde). Bu bir ürün kararı, `tests/test_sozlesme.py` ile sabitlenmiş.
 
 ### Klasör yapısı
 ```
@@ -38,14 +77,18 @@ bitki-hastalik-tespiti/         (git deposu kökü)
 ├── requirements-dev.txt        (pytest, httpx)
 ├── pytest.ini
 ├── .github/workflows/ci.yml
+├── docs/                       (yol haritası, tarihsel kayıtlar)
 ├── tests/                      (conftest.py sahte model üretir)
 ├── bitki-backend/
 │   ├── venv/                   (git yok)
 │   ├── predict.py
 │   ├── main.py
-│   ├── tune_threshold.py
+│   ├── tune_threshold.py       (ESKİ kurala göre ölçer — maske ve T yok)
+│   ├── static/index.html       (telefon arayüzü, tek dosya)
 │   ├── plantdoc_split/         (git yok — eşik ayarı için test görüntüleri)
-│   ├── best_model_v3.pth       (git yok — yerelde var)
+│   ├── best_model_v3_durust.pth (git yok — kullanılan model)
+│   ├── best_model_v3.pth       (git yok — eski, geri dönüş kopyası)
+│   ├── model_config.json       (git'te var — sıcaklık ve eşikler)
 │   ├── class_names.json        (git'te var — modelle eşleşmeli)
 │   └── test.jpg                (git yok)
 ```
@@ -62,10 +105,11 @@ bitki-hastalik-tespiti/         (git deposu kökü)
 
 ## 4. Kritik kısıtlar (agent bunları BİLMEDEN iş yaparsa hata çıkar)
 
-1. **CI'da model dosyası yok.** `best_model_v3.pth` git'te olmadığı için, GitHub Actions ortamında yüklenemez. Testleri buna göre kur: modeli mock'la, ya da küçük sahte bir model üret, ya da testleri model gerektirmeyen kısımlara odakla. Gerçek `.pth`'e bağlı test CI'da patlar.
+1. **CI'da model dosyası yok.** `best_model_v3_durust.pth` git'te olmadığı için, GitHub Actions ortamında yüklenemez. Testleri buna göre kur: modeli mock'la, ya da küçük sahte bir model üret, ya da testleri model gerektirmeyen kısımlara odakla. Gerçek `.pth`'e bağlı test CI'da patlar.
 2. **`.gitignore`'a dokunma dikkatli.** `*.pth`, `venv/`, `test.jpg`, `__pycache__/` git'e ASLA girmemeli. Yeni büyük/gizli dosya eklersen `.gitignore`'a da ekle.
 3. **CORS production'da kısıtlanmalı.** Geliştirmede tüm origin'lere izin verilebilir ama bunu her zaman yorumla işaretle: "production'da kısıtla".
 4. **Model her istekte değil, uygulama başında bir kere yüklenir.** `tahmin_et_goruntu` içinde model yükleme YAPMA.
+5. **Maskesiz tahmin yolu açılmamalı.** Sıcaklık (`T = 1.95`) ve eşikler (`0.70` / `0.80`) yalnızca **ürün maskesi uygulanmış** çıktılar üzerinde ölçüldü. `urun` alanını opsiyonel yapmak veya maskeyi atlayan bir yol eklemek, bu sayıları geçersiz kılar; sistem kalibre olduğunu sanarak kalibre olmayan güven skorları gösterir. **Model değişirse `T` ve iki eşik yeniden ölçülmeli** — eski değerleri yeni ağırlıklarla kullanma.
 
 ---
 

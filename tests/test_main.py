@@ -13,6 +13,10 @@ import main
 
 client = TestClient(main.app)
 
+# /predict artık dosyanın yanında zorunlu bir "urun" form alanı istiyor.
+# Testlerin çoğu için hangi ürün olduğu önemsiz; tek yerde tanımlıyoruz.
+URUN = {"urun": "domates"}
+
 
 def png_bayt(boyut=(300, 300)):
     """Bellekte sahte bir PNG üretip bayt olarak döndürür."""
@@ -44,6 +48,7 @@ def test_predict_gorunt_kabul_eder():
     cevap = client.post(
         "/predict",
         files={"file": ("yaprak.png", png_bayt(), "image/png")},
+        data=URUN,
     )
     assert cevap.status_code == 200
 
@@ -60,12 +65,14 @@ def test_predict_jpeg_de_kabul_eder():
     cevap = client.post(
         "/predict",
         files={"file": ("yaprak.jpg", tampon.read(), "image/jpeg")},
+        data=URUN,
     )
     assert cevap.status_code == 200
     assert "guven" in cevap.json()
 
 
 def test_predict_dosyasiz_istek_reddedilir():
+    # Artık iki zorunlu alan var (file + urun), ikisi de eksik.
     # FastAPI eksik zorunlu alanda 422 döner; bunu kendimiz yazmamıza gerek yok.
     cevap = client.post("/predict")
     assert cevap.status_code == 422
@@ -83,8 +90,9 @@ def test_predict_exif_yonunu_uygular(monkeypatch):
     # Modele giden görüntüyü yakalamak için tahmin fonksiyonunu değiştiriyoruz.
     gorulen = {}
 
-    def sahte_tahmin(gelen_img):
+    def sahte_tahmin(gelen_img, urun):
         gorulen["boyut"] = gelen_img.size
+        gorulen["urun"] = urun
         return {"durum": "basarili", "hastalik": "x", "guven": 99.0}
 
     monkeypatch.setattr(main, "tahmin_et_goruntu", sahte_tahmin)
@@ -92,6 +100,7 @@ def test_predict_exif_yonunu_uygular(monkeypatch):
     cevap = client.post(
         "/predict",
         files={"file": ("dik.jpg", tampon.getvalue(), "image/jpeg")},
+        data=URUN,
     )
     assert cevap.status_code == 200
     # Döndürme uygulandıysa en ve boy yer değiştirmiş olmalı.
@@ -102,6 +111,7 @@ def test_predict_resim_olmayan_dosyayi_400_ile_reddeder():
     cevap = client.post(
         "/predict",
         files={"file": ("not.txt", b"bu bir resim degil", "text/plain")},
+        data=URUN,
     )
     assert cevap.status_code == 400
     assert "resim" in cevap.json()["detail"]
@@ -112,6 +122,7 @@ def test_predict_yarim_kalmis_resmi_400_ile_reddeder():
     cevap = client.post(
         "/predict",
         files={"file": ("yarim.png", png_bayt()[:100], "image/png")},
+        data=URUN,
     )
     assert cevap.status_code == 400
 
@@ -122,5 +133,90 @@ def test_predict_cok_buyuk_dosyayi_413_ile_reddeder(monkeypatch):
     cevap = client.post(
         "/predict",
         files={"file": ("buyuk.png", png_bayt(), "image/png")},
+        data=URUN,
     )
     assert cevap.status_code == 413
+
+
+# --- Zorunlu "urun" alanı -----------------------------------------------
+
+def test_predict_urun_alani_eksikse_422_doner():
+    """urun zorunlu: dosya gönderilse bile eksikse istek reddedilir.
+
+    Alan opsiyonel olsaydı maskesiz bir tahmin yolu açık kalırdı; eşikler
+    ve sıcaklık yalnızca maskeli çıktılar üzerinde ölçüldüğü için o yolda
+    güven skorları anlamsız olurdu.
+    """
+    cevap = client.post(
+        "/predict",
+        files={"file": ("yaprak.png", png_bayt(), "image/png")},
+    )
+    assert cevap.status_code == 422
+
+
+def test_predict_gecersiz_urunu_400_ile_reddeder():
+    cevap = client.post(
+        "/predict",
+        files={"file": ("yaprak.png", png_bayt(), "image/png")},
+        data={"urun": "elma"},
+    )
+    assert cevap.status_code == 400
+
+    # Mesaj arayüzde doğrudan çiftçiye gösteriliyor: okunur bir METİN olmalı
+    # (422'nin liste biçimi değil) ve ne yapılacağını söylemeli.
+    detail = cevap.json()["detail"]
+    assert isinstance(detail, str)
+    assert "elma" in detail
+    for urun in main.GECERLI_URUNLER:
+        assert urun in detail
+
+
+def test_gecersiz_urunde_dosya_hic_okunmaz(monkeypatch):
+    """Ürün kontrolü dosyadan ÖNCE olmalı.
+
+    Sırası yanlış olsaydı 8 MB'lık bir fotoğraf boşuna belleğe okunurdu.
+    """
+    cagrildi = {"evet": False}
+
+    def sahte_tahmin(gelen_img, urun):
+        cagrildi["evet"] = True
+        return {}
+
+    monkeypatch.setattr(main, "tahmin_et_goruntu", sahte_tahmin)
+
+    cevap = client.post(
+        "/predict",
+        files={"file": ("yaprak.png", png_bayt(), "image/png")},
+        data={"urun": "elma"},
+    )
+    assert cevap.status_code == 400
+    assert cagrildi["evet"] is False
+
+
+def test_predict_her_gecerli_urunu_kabul_eder():
+    for urun in main.GECERLI_URUNLER:
+        cevap = client.post(
+            "/predict",
+            files={"file": ("yaprak.png", png_bayt(), "image/png")},
+            data={"urun": urun},
+        )
+        assert cevap.status_code == 200, urun
+
+        sonuc = cevap.json()
+        assert sonuc["urun"] == urun
+        assert isinstance(sonuc["adaylar"], list)
+        assert sonuc["adaylar"]
+
+
+def test_predict_cevabinda_adaylar_sadece_secilen_urune_ait():
+    # Maskenin HTTP katmanından geçerken de bozulmadığını doğrular.
+    cevap = client.post(
+        "/predict",
+        files={"file": ("yaprak.png", png_bayt(), "image/png")},
+        data={"urun": "biber"},
+    )
+    assert cevap.status_code == 200
+
+    adaylar = cevap.json()["adaylar"]
+    assert len(adaylar) == 2  # biberin 2 sınıfı var
+    assert all(a["hastalik"].startswith("Pepper") for a in adaylar)

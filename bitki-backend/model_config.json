@@ -1,3 +1,6 @@
 {
-  "model_dosyasi": "best_model_v3_durust.pth"
+  "model_dosyasi": "best_model_v3_durust.pth",
+  "sicaklik": 1.95,
+  "guven_esigi": 0.70,
+  "saglikli_esigi": 0.80
 }

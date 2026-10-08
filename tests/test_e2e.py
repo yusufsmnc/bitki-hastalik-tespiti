@@ -41,6 +41,10 @@ BACKEND = KOK / "bitki-backend"
 # Yerelde ~5 sn, CI'ın yavaş makinesinde daha uzun sürebilir; cömert olalım.
 BASLATMA_ZAMAN_ASIMI = 120  # saniye
 
+# /predict zorunlu bir "urun" form alani istiyor (kalibrasyon ve esikler
+# urun maskesi uygulanmis ciktilar uzerinde olculdu).
+URUN = {"urun": "domates"}
+
 
 def _bos_port():
     """İşletim sisteminden boşta bir port iste.
@@ -179,6 +183,7 @@ def test_05_fotograf_gonderip_gecerli_sonuc_alinir(sunucu):
     cevap = httpx.post(
         f"{sunucu}/predict",
         files={"file": ("yaprak.jpg", jpeg_bayt(), "image/jpeg")},
+        data=URUN,
         timeout=60,
     )
     assert cevap.status_code == 200
@@ -189,6 +194,11 @@ def test_05_fotograf_gonderip_gecerli_sonuc_alinir(sunucu):
     assert sonuc["durum"] in ("basarili", "emin_degil")
     assert isinstance(sonuc["guven"], float)
     assert 0.0 <= sonuc["guven"] <= 100.0
+
+    # Gonderilen urun geri yansitilir ve adaylar sadece o urune aittir.
+    assert sonuc["urun"] == URUN["urun"]
+    assert sonuc["adaylar"]
+    assert all(a["hastalik"].startswith("Tomato") for a in sonuc["adaylar"])
 
     # Duruma göre hangi alanların bulunması GEREKTİĞİ de sözleşmenin parçası.
     if sonuc["durum"] == "basarili":
@@ -207,6 +217,7 @@ def test_06_farkli_boyut_ve_formatlar_calisir(sunucu):
         cevap = httpx.post(
             f"{sunucu}/predict",
             files={"file": ("yaprak.jpg", jpeg_bayt(boyut), "image/jpeg")},
+            data=URUN,
             timeout=60,
         )
         assert cevap.status_code == 200, f"{boyut} boyutunda hata"
@@ -223,6 +234,7 @@ def test_07_ardisik_istekler_sunucuyu_bozmuyor(sunucu):
         cevap = httpx.post(
             f"{sunucu}/predict",
             files={"file": ("yaprak.jpg", jpeg_bayt(), "image/jpeg")},
+            data=URUN,
             timeout=60,
         )
         assert cevap.status_code == 200
@@ -234,6 +246,7 @@ def test_08_resim_olmayan_dosya_400_doner(sunucu):
     cevap = httpx.post(
         f"{sunucu}/predict",
         files={"file": ("not.txt", b"bu bir resim degil", "text/plain")},
+        data=URUN,
         timeout=30,
     )
     assert cevap.status_code == 400
@@ -245,6 +258,7 @@ def test_09_bozuk_resim_400_doner(sunucu):
     cevap = httpx.post(
         f"{sunucu}/predict",
         files={"file": ("yarim.jpg", jpeg_bayt()[:80], "image/jpeg")},
+        data=URUN,
         timeout=30,
     )
     assert cevap.status_code == 400
@@ -257,13 +271,36 @@ def test_10_10mb_ustu_dosya_413_doner(sunucu):
     cevap = httpx.post(
         f"{sunucu}/predict",
         files={"file": ("buyuk.jpg", buyuk, "image/jpeg")},
+        data=URUN,
         timeout=60,
     )
     assert cevap.status_code == 413
 
 
 def test_11_dosyasiz_istek_422_doner(sunucu):
+    # Iki zorunlu alan da (file + urun) eksik.
     assert httpx.post(f"{sunucu}/predict", timeout=30).status_code == 422
+
+
+def test_11b_gecersiz_urun_400_doner(sunucu):
+    """Gercek sunucuda da okunur bir Turkce mesaj donmeli (liste degil)."""
+    cevap = httpx.post(
+        f"{sunucu}/predict",
+        files={"file": ("yaprak.jpg", jpeg_bayt(), "image/jpeg")},
+        data={"urun": "elma"},
+        timeout=30,
+    )
+    assert cevap.status_code == 400
+    assert isinstance(cevap.json()["detail"], str)
+
+
+def test_11c_urun_alani_eksikse_422_doner(sunucu):
+    cevap = httpx.post(
+        f"{sunucu}/predict",
+        files={"file": ("yaprak.jpg", jpeg_bayt(), "image/jpeg")},
+        timeout=30,
+    )
+    assert cevap.status_code == 422
 
 
 # --- 5. Aşama: tarayıcı tarafı gereksinimleri ---------------------------

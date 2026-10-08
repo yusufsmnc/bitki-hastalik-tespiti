@@ -3,6 +3,8 @@
 Hedef: modeli gerçek tarlada kullanılabilir hale getirmek.
 Başlangıç noktası **v3** (ResNet18, PlantVillage + PlantDoc + PlantWild): PlantDoc saha test setinde **%62.21 top-1**.
 
+> **Bu başlangıç sayısı güvenilmez çıktı.** Aşama 0, %62.21'in test setine bakılarak seçilmiş bir checkpoint'ten geldiğini ve test setinin bir kısmının eğitim verisinde kopyası bulunduğunu gösterdi. Dürüst yeniden ölçüm **v3-dürüst** satırındadır (maskesiz %57.64). Ayrıntı: [Aşama 0 bulguları](#aşama-0--ölçümü-sağlamlaştır).
+
 Yol haritası altı aşamadan oluşur. Önce ölçüm dürüst hale getirilir, sonra eğitim gerektirmeyen kazançlar toplanır, ardından her seferinde tek değişken değiştirilerek veri, backbone ve lezyon denetimi eklenir. Her aşamanın sonunda bir **kapı** vardır; kapıdan geçmeyen fikir bir sonraki aşamaya taşınmaz.
 
 > **Lisans notu:** PlantWild ve PlantSeg CC BY-NC-ND 4.0 lisanslıdır. Bu verilerle eğitilen model ticari olarak kullanılamaz; proje öğrenme ve portfolyo amaçlıdır.
@@ -20,8 +22,8 @@ flowchart LR
 
 | Aşama | İş | Kapı |
 | --- | --- | --- |
-| 0 | Val ayır, sızıntı kontrolü, dürüst v3 ölçümü | Güvenilir başlangıç sayısı |
-| 1 | Eğitimsiz kazançlar + Grad-CAM *(paralelde: yeni veri hazırlığı)* | Aşama 4 önceliği belirlendi, kalibre eşik `predict.py`'de |
+| 0 ✅ | Val ayır, sızıntı kontrolü, dürüst v3 ölçümü | Güvenilir başlangıç sayısı |
+| 1 (kısmen) | Eğitimsiz kazançlar + Grad-CAM *(paralelde: yeni veri hazırlığı)* | Aşama 4 önceliği belirlendi, kalibre eşik `predict.py`'de |
 | 2 | v4 = ResNet18 + yeni veri, v3 ile kıyas | v4, v3'ü geçer |
 | 3 | Backbone yarışması (genişletilmiş veriyle) | Kazanan, v4'ü anlamlı farkla geçer |
 | 4 | Lezyon denetimi (PlantSeg maskeleri) | Kazanç + Grad-CAM odağı lezyona kayar |
@@ -42,32 +44,47 @@ flowchart LR
 
 ## Aşama 0 — Ölçümü sağlamlaştır
 
-Amaç: v3 için güvenilir bir başlangıç sayısı. Eğitim yok.
+Amaç: v3 için güvenilir bir başlangıç sayısı. Eğitim yok. **Durum: tamamlandı.**
 
-- [ ] 838'lik PlantDoc eğitim setinden sınıf bazlı %20 saha val seti ayır (sabit seed, dosya listesi olarak kaydet)
-- [ ] Eğitim kodunda checkpoint seçimi ve scheduler'ın hangi sete baktığını kontrol et; test setine bakıyorsa val setine çevir
-- [ ] PlantWild eğitim görüntülerini 569'luk test setine karşı phash ile tara, eşleşme sayısını kaydet
-- [ ] Eşleşme varsa: eşleşenleri çıkarıp v3'ü aynı hiperparametrelerle yeniden eğit (v3-temiz)
-- [ ] v3 (veya v3-temiz) için top-1, top-3, karışıklık matrisi ve sınıf bazlı f1 çıkar
+- [x] 838'lik PlantDoc eğitim setinden sınıf bazlı %20 saha val seti ayır (sabit seed, dosya listesi olarak kaydet) — 163 görüntü
+- [x] Eğitim kodunda checkpoint seçimi ve scheduler'ın hangi sete baktığını kontrol et; test setine bakıyorsa val setine çevir
+- [x] PlantWild eğitim görüntülerini 569'luk test setine karşı phash ile tara, eşleşme sayısını kaydet
+- [x] Eşleşme varsa: eşleşenleri çıkarıp v3'ü aynı hiperparametrelerle yeniden eğit (v3-dürüst)
+- [x] v3 (veya v3-dürüst) için top-1, top-3, karışıklık matrisi ve sınıf bazlı f1 çıkar
+
+### Bulgular
+
+Hepsi eski **v3** ile ilgilidir ve yeniden ölçümü zorunlu kıldı:
+
+- **Checkpoint seçimi test setine bakıyordu.** %62.21, seçimde kullanılan setin kendisinde ölçülmüş bir sayıydı; yani bir test sonucu değil, iyimser bir üst sınır.
+- **Eğitim–test sızıntısı.** Test setinin en az **82 görüntüsünün** (%14.4) kopyası eski v3'ün eğitim verisindeydi (`imagehash.phash`, mesafe ≤ 10). Eski v3, kopyalardan arındırılmış **487 görüntüde %61.81** top-1 yaptı — sızıntı tek başına sayıyı şişirmemiş, ama sayının temiz bir ölçüm olmadığını gösterdi.
+- **Etiket gürültüsü.** Aynı fotoğrafın farklı veri setlerinde **farklı etiketlerle** bulunduğu 40 çift tespit edildi; domates/patates karışıklığı dahil. Test etiketlerinin bir kısmı gürültülüdür, yani ölçülen doğruluk iki yöne de sapabilir.
+- **Laboratuvar görüntüsü saha setinin içinde.** PlantDoc test/val bölümünde **10 PlantVillage** (laboratuvar) görüntüsü bulundu; bu kadarlık bir kirlilik saha sayısını hafifçe yukarı çeker.
 
 **Çıktı:** `split_saha_val.json`, `phash_rapor.csv`, `olcum_v3.md`
-**Kapı:** Dürüst v3 sayısı belgelendi ve val/test ayrımı kodda garanti altında.
+**Kapı:** ✅ Dürüst v3 sayısı belgelendi ve val/test ayrımı kodda garanti altında.
 
 ## Aşama 1 — Eğitimsiz kazançlar ve teşhis
 
 Amaç: v3'ü yeniden eğitmeden daha kullanışlı hale getirmek ve hataların nereden geldiğini görmek.
 
-- [ ] Ürün seçimi + logit maskeleme: seçilen ürünün dışındaki sınıflara `-inf` ekle; maskeli ve maskesiz doğruluğu kıyasla
+- [x] Ürün seçimi + logit maskeleme: seçilen ürünün dışındaki sınıflara `-inf` ekle; maskeli ve maskesiz doğruluğu kıyasla — top-1 %57.64 → %69.77 (PlantDoc test, 569)
+- [x] Kalibrasyon: saha val setinde temperature scaling — `T = 1.95`; test setinde ECE 15.41 → 5.17
+- [x] Güven eşiği: saha val setinde seçildi — 0.70, "sağlıklı" tahminler için 0.80 *(0.80 veriyle değil güvenlik gerekçesiyle)*
+- [x] Backend'e taşı: `predict.py` + `main.py` + arayüz; üç sayı `model_config.json`'a alındı
+- [x] Ürün tutarlılık kontrolü: **ölçüldü** — yakalama %82.8, yanlış alarm %4.6. *Henüz kodda yok, bir sonraki PR'da eklenecek.*
 - [ ] Grad-CAM: test setinden 20-30 yanlış tahminin ısı haritası; her birini "arka plan / yaprakta yanlış bölge / doğru lezyon, yanlış sınıf" olarak etiketle
-- [ ] Kalibrasyon: saha val setinde temperature scaling
-- [ ] `tune_threshold.py`: farklı eşiklerde isabet/kapsama tablosu, `GUVEN_ESIGI` güncellemesi
 - [ ] TTA: 4-5 augment'li kopyanın softmax ortalaması
 - [ ] Soru soran model (prototip): en çok karışan sınıf çiftlerinden 5-6 soruluk belirti havuzu, bilgi kazancıyla soru seçimi, Bayes güncellemesi
 - [ ] Soru soran modeli simüle et: çiftçi cevabını gerçek sınıftan üret, %20 ihtimalle yanlış cevap ver; 1 ve 2 soru sonrası doğruluğu ölç
 - [ ] `P(cevap | hastalık)` tablosunu bir ziraat mühendisine veya güvenilir bitki patolojisi kaynağına doğrulat
 
+### Neden ürün tutarlılık kontrolü gerekiyor
+
+Maske, seçilen ürünün dışındaki sınıfları kestiği için **yanlış ürün seçimi sessiz kalmıyor, emin görünen yanlış bir cevap üretiyor**: olasılık her zaman izin verilen sınıflara dağıtılıyor ve güven yüksek çıkıyor. Test görüntüleri bilerek yanlış ürünle değerlendirildiğinde (n=1.138) bu oran **%55.3**. Şu anki önlem yalnızca arayüzdedir (seçilen bitki her sonuçta görünür, ürün değişince fotoğraf kendiliğinden gönderilmez). Ölçülen otomatik kontrol bu boşluğu kapatacak.
+
 **Paralel iş:** yeni veri hazırlığı (Aşama 2'nin hazırlık kısmı).
-**Kapı:** Grad-CAM sonucuna göre Aşama 4'ün önceliği belirlendi; kalibre edilmiş eşik `predict.py`'ye işlendi.
+**Kapı:** Kalibre edilmiş eşik `predict.py`'ye işlendi ✅; Grad-CAM ile Aşama 4 önceliğinin belirlenmesi bekliyor.
 
 ## Aşama 2 — v4: yeni veri ile ResNet18
 
@@ -153,25 +170,64 @@ Literatür notu: arka plan değiştirme yayınlanmış bir yöntemdir ([Lab-to-F
 
 ---
 
+## Eski karar kuralı (tarihsel kayıt)
+
+Aşama 1'den önce sistem şu kuralı kullanıyordu: **ürün maskesi yok, sıcaklık ölçekleme yok, ham softmax olasılığına 0.95 eşiği.** Tablo, o dönemin `predict.py` dosyasındaki yorumdan alınmıştır (commit `0ce0369`); PlantDoc test setinde 569 görüntü üzerinde `tune_threshold.py` ile ölçülmüştü:
+
+| Güven eşiği | Kapsama (cevap verdiği oran) | Cevap verdiğinde isabet |
+| ---: | ---: | ---: |
+| 0.80 | %58.3 | %73.8 |
+| 0.90 | %45.0 | %80.1 |
+| **0.95 (seçilen)** | **%36.6** | **%84.6** |
+| 0.97 | %30.2 | %87.8 |
+
+Seçim kuralı o zaman şöyle yazılmıştı: *isabetin ~%85'e ulaştığı en düşük eşik.* Modelin eşiksiz genel doğruluğu aynı sette %62.2 olarak kaydedilmişti.
+
+Bu kuralın iki sorunu vardı:
+
+1. **Eşik, raporlandığı aynı test setinde seçildi.** Yani %84.6 isabet bir test sonucu değil, iyimser bir üst sınırdı. (Uyarı o zaman da kodda yazılıydı.)
+2. **Olasılıklar kalibre edilmemiş ve maskesizdi.** 0.95 aşırı özgüvenli bir dağılımın üzerine konmuş bir eşikti; bu yüzden fotoğrafların ~%63'ünde sistem susmak zorunda kalıyordu.
+
+Yeni kuralın 0.70 eşiği bununla **doğrudan karşılaştırılamaz**: ölçek farklı (logitler `T = 1.95`'e bölünmüş) ve maske uygulanmış. İki sayıyı yan yana koyup "eşik gevşetildi" demek yanlış olur.
+
+`tune_threshold.py` dosyası depoda duruyor ama **eski kurala göre ölçer** (maske ve sıcaklık uygulamaz); güncel eşik ayarı Colab'daki Aşama 1 notebook'unda yapılıyor.
+
+---
+
 ## Sonuç tablosu
 
 Saha val her deneyde, test seti sadece aşama kapılarında doldurulur.
 
-| Sürüm | Değişen tek şey | Saha val top-1 (%) | Saha test top-1 (%) | Top-3 (%) | Makro f1 | CPU süresi (ms) | Not |
+| Sürüm | Değişen tek şey | Saha val top-1 (%) | Saha test top-1 (%) | Top-3 test (%) | Makro f1 (test) | CPU süresi (ms) | Not |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| v3 | Başlangıç | | 62.21 | | | | Test seti seçimde kullanılmış olabilir; Aşama 0'da doğrulanacak |
-| v3 + maske | Ürün seçimi | | | | | | |
-| v3 + kalibrasyon + TTA | Çıkarım | | | | | | |
+| v3 | Başlangıç | — | 62.21 | | | | **Güvenilmez.** Checkpoint test setine bakılarak seçilmiş; test setinin %14.4'ü (≥82 görüntü) eğitimde kopya. Kopyasız 487 görüntüde %61.81. Saha val boş: **val görüntüleri eğitimdeydi** |
+| v3-dürüst | Checkpoint saha val'de seçildi (epoch 8) | 67.48 | 57.64 | 86.47 | 0.593 | | Maskesiz. Laboratuvar (PlantVillage val, 3.089, seçimde kullanılmadı): %97.64 |
+| v3-dürüst + maske | Ürün seçimi (maske softmax'tan **önce**) | 77.91 | 69.77 | 93.85 | 0.702 | | Çiftçinin ürünü doğru seçtiği varsayımıyla. Literatürdeki maskesiz sonuçlarla kıyaslanamaz |
+| v3-dürüst + maske + kalibrasyon | `T = 1.95` | 77.91 *(değişmez)* | 69.77 *(değişmez)* | 93.85 | 0.702 | | Sıcaklık sıralamayı bozmaz, yalnızca güveni kalibre eder: test ECE 15.41 → 5.17, ortalama güven %85.2 → %72.0. Karar kuralı (0.70 / sağlıklı 0.80): kapsama %54.5, isabet %88.1 |
+| + TTA | Çıkarım | | | | | | Henüz ölçülmedi |
 | v3 + soru (1 soru) | Etkileşim | | | | | | Simülasyon, %20 cevap hatası |
 | v4 | Yeni veri | | | | | | |
 | v5 | Backbone | | | | | | |
 | v6 | Lezyon denetimi | | | | | | |
 | Öğrenci | Damıtma | | | | | | |
 
+> **Saha val top-1 iyimserdir.** Maskesiz %67.48, modelin epoch'unun (8) seçilmesinde kullanılan değerin kendisidir. Testteki %57.64 ile arasındaki 9.8 puanlık farkın bir kısmı bu seçim etkisinden kaynaklanır; tamamını "val kolay, test zor" diye okumak yanlış olur.
+
+### Saha val (163 görüntü) ayrıntısı
+
+| Sürüm | Top-1 (%) | Top-3 (%) | Makro F1 | Kalibrasyon |
+| --- | ---: | ---: | ---: | --- |
+| v3-dürüst (maskesiz) | 67.48 | 90.18 | 0.638 | |
+| v3-dürüst + maske | 77.91 | 95.09 | 0.723 | ECE 14.61 |
+| + kalibrasyon (`T = 1.95`) | 77.91 *(değişmez)* | 95.09 | 0.723 | ECE 10.96 |
+
+`T` bu val setinde seçildi, bu yüzden val'daki ECE kazancı (14.61 → 10.96) testteki kazançtan (15.41 → 5.17) **daha küçük** — ters görünüyor ama şaşırtıcı değil: tek bir sıcaklık değeri iki setteki hatayı aynı oranda düzeltmek zorunda değil. Raporlanacak sayı testtekidir.
+
 ## Riskler
 
 | Risk | Etki | Önlem |
 | --- | --- | --- |
+| Yanlış ürün seçimi | Emin görünen yanlış cevap (yanlış ürünle n=1.138'de %55.3) | Şimdilik arayüz: seçilen bitki her sonuçta görünür, ürün değişince sorulur. Ölçülen otomatik kontrol sonraki PR'da |
 | Veri setleri arası çakışma | Doğruluk şişer | Her kaynakta phash taraması |
 | Yanlış remap | Model sessizce yanlış öğrenir | Eşleme tablosu + örneklere gözle bakış |
 | Soru tablosundaki olasılıklar uydurma | Soru soran mod yanlış yönlendirir | Uzman veya kaynak doğrulaması |

@@ -9,10 +9,41 @@ from PIL import Image
 
 # Yollar bu dosyanın bulunduğu klasöre göre çözülür; böylece uygulama
 # hangi klasörden başlatılırsa başlatılsın model dosyaları bulunur.
-# Ortam değişkenleri testlerin (ve CI'ın) sahte bir model vermesini sağlar.
 BURASI = Path(__file__).resolve().parent
+
+
+# --- Yapılandırma -------------------------------------------------------
+# Hangi ağırlık dosyasının yükleneceği KODUN değil MODELİN bilgisi. Dosya adını
+# kodun içine gömmek, model değiştiğinde kod değiştirmek demekti; ayrı bir
+# "model künyesi" dosyasında tutunca model ve kod birbirinden ayrışıyor
+# (class_names.json gibi).
+YAPILANDIRMA_YOLU = BURASI / "model_config.json"
+
+
+def _yapilandirmayi_oku(yol):
+    """model_config.json'u okur ve beklenen alanların varlığını doğrular.
+
+    Dosya bozuk veya eksikse açılışta hata verir: yarım yapılandırmayla
+    tahmin üretmek, hiç açılmamaktan daha kötü.
+    """
+    try:
+        with open(yol, encoding="utf-8") as f:
+            veri = json.load(f)
+    except (OSError, json.JSONDecodeError) as hata:
+        raise RuntimeError(f"model_config.json okunamadı ({yol}): {hata}") from hata
+
+    for anahtar in ("model_dosyasi",):
+        if anahtar not in veri:
+            raise RuntimeError(f"model_config.json'da '{anahtar}' alanı yok ({yol}).")
+    return veri
+
+
+yapilandirma = _yapilandirmayi_oku(YAPILANDIRMA_YOLU)
+
+# Ortam değişkenleri testlerin (ve CI'ın) sahte bir model vermesini sağlar;
+# öncelik sırası: ortam değişkeni > model_config.json > varsayılan.
 CLASS_NAMES_YOLU = Path(os.getenv("CLASS_NAMES_PATH", BURASI / "class_names.json"))
-MODEL_YOLU = Path(os.getenv("MODEL_PATH", BURASI / "best_model_v3.pth"))
+MODEL_YOLU = Path(os.getenv("MODEL_PATH", BURASI / yapilandirma["model_dosyasi"]))
 
 with open(CLASS_NAMES_YOLU, encoding="utf-8") as f:
     class_names = json.load(f)

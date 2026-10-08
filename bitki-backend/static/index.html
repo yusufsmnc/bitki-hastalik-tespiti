@@ -776,22 +776,44 @@
    Her seferinde document.getElementById çağırmak yerine başta bir
    kere bulup değişkende tutuyoruz: hem daha hızlı, hem bir id'yi
    yanlış yazmışsak hatayı en başta fark ederiz. */
+const urunAlani       = document.getElementById("urun-alani");
+const secimUyarisi    = document.getElementById("secim-uyarisi");
 const fotoSecici      = document.getElementById("foto-secici");
 const anaButon        = document.getElementById("ana-buton");
 const onizlemeAlani   = document.getElementById("onizleme-alani");
 const onizlemeGorsel  = document.getElementById("onizleme-gorsel");
 const yukleniyorAlani = document.getElementById("yukleniyor-alani");
+const onayAlani       = document.getElementById("onay-alani");
+const onayMesaji      = document.getElementById("onay-mesaji");
+const onayGonder      = document.getElementById("onay-gonder");
 const sonucBasarili   = document.getElementById("sonuc-basarili");
 const sonucEminDegil  = document.getElementById("sonuc-emin-degil");
 const sonucHata       = document.getElementById("sonuc-hata");
 const durumEtiketi    = document.getElementById("durum-etiketi");
 const hastalikAdi     = document.getElementById("hastalik-adi");
+const bitkiBasarili   = document.getElementById("secili-bitki-basarili");
+const bitkiEminDegil  = document.getElementById("secili-bitki-emin-degil");
 const guvenDeger      = document.getElementById("guven-deger");
 const guvenDolgu      = document.getElementById("guven-dolgu");
 const eminDegilMesaji = document.getElementById("emin-degil-mesaji");
+const adayBolumu      = document.getElementById("aday-bolumu");
+const adayListesi     = document.getElementById("aday-listesi");
 const hataMesaji      = document.getElementById("hata-mesaji");
 const hataEtiketi     = document.getElementById("hata-etiketi");
 const durumAnonsu     = document.getElementById("durum-anonsu");
+
+/* querySelectorAll bir NodeList döndürür; Array'e çeviriyoruz ki find
+   gibi dizi yöntemlerini de kullanabilelim. */
+const urunButonlari = Array.from(document.querySelectorAll(".urun-butonu"));
+
+/* Backend'in beklediği değer ("domates") ile ekranda yazılan ad
+   ("Domates") ayrı şeyler. Backend'e küçük harfli olanı gönderiyoruz,
+   çiftçiye bu tablodaki adı gösteriyoruz. */
+const URUN_ADLARI = {
+  domates: "Domates",
+  patates: "Patates",
+  biber:   "Biber",
+};
 
 /* Sunucu hiç cevap vermezse çiftçi sonsuza kadar dönen spinnere bakmasın.
    Tahmin normalde 1-3 saniye; 60 saniye fazlasıyla cömert bir üst sınır. */
@@ -805,12 +827,27 @@ const AZ_HAREKET = window.matchMedia("(prefers-reduced-motion: reduce)").matches
    için dışarıda tutuyoruz (bkz. onizlemeTemizle). */
 let onizlemeURL = null;
 
+/* Seçili ürün. null = henüz seçilmedi; o hâlde fotoğraf gönderilemez. */
+let seciliUrun = null;
+
+/* Son gönderilen dosya. Ürün değiştiğinde "aynı fotoğrafı yeni bitkiyle
+   gönder" diyebilmek için tutuyoruz. sifirla() bunu null yapar: ekranda
+   olmayan bir fotoğrafın yeniden gönderilmesi kafa karıştırır. */
+let sonDosya = null;
+
+/* Bir tahmin isteği sürüyor mu? Buton kilidinin İKİ sebebi var (ürün
+   seçilmemiş olabilir, ya da istek sürüyor olabilir) ve ikisi birbirinden
+   bağımsız. Tek bir "kilitli" bayrağı tutsaydık, istek bitince kilidi
+   açarken ürün seçilmemiş olmasını görmezdik. */
+let istekSuruyor = false;
+
 
 /* ---- 2. Durum geçişleri -------------------------------------
    Tek geçiş noktası: önce HEPSİNİ gizler, sonra istenenleri açar.
    Böylece iki sonuç kartının aynı anda ekranda kalması imkânsız. */
 const DURUM_BOLUMLERI = [
-  onizlemeAlani, yukleniyorAlani, sonucBasarili, sonucEminDegil, sonucHata
+  onizlemeAlani, yukleniyorAlani, onayAlani,
+  sonucBasarili, sonucEminDegil, sonucHata
 ];
 
 function durumGoster(...gorunecekler) {
@@ -818,11 +855,35 @@ function durumGoster(...gorunecekler) {
   gorunecekler.forEach(bolum => bolum.classList.remove("gizli"));
 }
 
-/* Çift gönderimi engeller: devre dışı bir input'un label'ına basmak
-   hiçbir şey yapmaz. .pasif sınıfı da bunu görsel olarak belli eder. */
-function butonKilitle(kilitli) {
-  fotoSecici.disabled = kilitli;
-  anaButon.classList.toggle("pasif", kilitli);
+/* Ekranda, seçili ürüne bağlı bir kart var mı? Ürün değiştiğinde "eski
+   kartı düzeltmem gerekiyor mu" sorusunun cevabı bu.
+
+   Onay kartı da listede: kullanıcı üst üste iki kez ürün değiştirirse
+   ("patates... hayır, biber") onay kartının metni de yenilenmeli, yoksa
+   düğmede "Patates olarak gönder" yazarken istek biber olarak gider. */
+function urunBagliKartEkrandaMi() {
+  return [sonucBasarili, sonucEminDegil, sonucHata, onayAlani]
+    .some(kart => !kart.classList.contains("gizli"));
+}
+
+/* Butonların erişilebilirliğini tek yerden hesaplar.
+   - Fotoğraf butonu: ürün seçilmemişse VEYA istek sürüyorsa pasif.
+     (İkincisi çift gönderimi engeller: devre dışı bir input'un
+     label'ına basmak hiçbir şey yapmaz.)
+   - Ürün butonları: istek sürerken pasif. Sebep bir yarış durumu --
+     ürün ortada değişirse cevap ESKİ ürüne göre gelir ama seçici
+     yenisini gösterir, yani kart kendisiyle çelişir. */
+function butonlariTazele() {
+  fotoSecici.disabled = !seciliUrun || istekSuruyor;
+  anaButon.classList.toggle("pasif", !seciliUrun || istekSuruyor);
+
+  // Ürün seçilince "önce bitkini seç" uyarısının işi biter.
+  secimUyarisi.classList.toggle("gizli", Boolean(seciliUrun));
+
+  urunButonlari.forEach(buton => {
+    buton.classList.toggle("pasif", istekSuruyor);
+    buton.setAttribute("aria-disabled", istekSuruyor ? "true" : "false");
+  });
 }
 
 /* Ekran okuyucuya tek satırlık durum bildirir (görsel bir etkisi yok). */
@@ -849,7 +910,97 @@ function sonucaGec(kart) {
 }
 
 
-/* ---- 3. Önizleme ve bellek temizliği ------------------------
+/* ---- 3. Ürün seçimi ----------------------------------------- */
+
+function urunAdi(urun) {
+  // Tablo dışı bir değer gelse ham hâlini göster, "undefined" yazmayalım.
+  return URUN_ADLARI[urun] || urun || "—";
+}
+
+/* Bir ürün düğmesine basıldığında çalışır. */
+function urunSec(urun) {
+  /* İstek sürerken seçim değişmez (butonlariTazele düğmeleri soluk
+     gösteriyor). Tıklamayı burada yutuyoruz, çünkü disabled özelliğini
+     kullanmak odağı kaybettiriyor. */
+  if (istekSuruyor) return;
+
+  // Aynı düğmeye tekrar basmak bir değişiklik değil; yapacak iş yok.
+  if (urun === seciliUrun) return;
+
+  seciliUrun = urun;
+
+  urunButonlari.forEach(buton => {
+    const secili = buton.dataset.urun === urun;
+    buton.classList.toggle("secili", secili);
+    // Renk ve ✓ işareti gözle görünen kısım; aria-pressed aynı bilgiyi
+    // ekran okuyucuya söyler.
+    buton.setAttribute("aria-pressed", secili ? "true" : "false");
+  });
+
+  butonlariTazele();
+  urunDegistigindeEkraniDuzelt();
+}
+
+/* Ürün değiştiğinde ekranda duran cevap artık seçili bitkiyle uyuşmuyor.
+   Onu gizliyoruz ve fotoğraf hâlâ elimizdeyse KULLANICIYA soruyoruz.
+
+   İsteği kendiliğinden göndermiyoruz; gerekçesi onay kartının HTML'inde
+   uzun uzun yazılı: "yanlış bitki seçtim, düzeltiyorum" ile "bu bitkiyi
+   bitirdim, diğerine geçiyorum" niyeti dışarıdan aynı görünür. */
+function urunDegistigindeEkraniDuzelt() {
+  if (!urunBagliKartEkrandaMi()) return;   // ekranda çelişecek bir şey yok
+
+  duyur("");
+
+  if (sonDosya) {
+    const ad = urunAdi(seciliUrun);
+    /* Metin iki durumda da doğru olmalı: ekranda bir sonuç varken de,
+       zaten bu onay kartındayken ürün tekrar değiştirildiğinde de. */
+    onayMesaji.textContent =
+      "Seçilen bitki artık " + ad + ". Önceki sonuç bu bitkiye ait değildi. " +
+      "Aynı fotoğrafı " + ad + " olarak yeniden değerlendirebilirim.";
+    onayGonder.textContent = "Bu fotoğrafı " + ad + " olarak gönder";
+
+    durumGoster(onizlemeAlani, onayAlani);
+    sonucaGec(onayAlani);
+  } else {
+    /* Fotoğraf elde değil (örn. resim olmayan bir dosya seçilmişti ve
+       ekranda hata kartı vardı): gösterilecek bir şey yok, Durum A'ya
+       dönüyoruz. Odağı taşımıyoruz -- kullanıcı az önce ürün düğmesine
+       bastı, orada kalması doğru. */
+    onizlemeTemizle();
+    durumGoster();
+    guvenDolgu.style.width = "0%";
+  }
+}
+
+/* Sonuç kartlarındaki "Bitkiyi değiştir": kendisi hiçbir şey göndermez,
+   sadece kullanıcıyı ürün seçicisine götürür. Asıl iş yukarıdaki iki
+   fonksiyonda; böylece çiftçi bu düğmeye basmadan yukarıdaki yanlış
+   seçimi doğrudan düzeltse de davranış birebir aynı oluyor. */
+function bitkiyiDegistir() {
+  urunAlani.scrollIntoView({ behavior: AZ_HAREKET ? "auto" : "smooth", block: "start" });
+
+  /* Odağı seçili düğmeye taşıyoruz: klavye/ekran okuyucu kullanıcısı da
+     seçicinin başında olsun. preventScroll, yukarıdaki yumuşak kaydırmayla
+     çakışmasın diye. */
+  const hedef = urunButonlari.find(b => b.dataset.urun === seciliUrun) || urunButonlari[0];
+  hedef.focus({ preventScroll: true });
+}
+
+urunButonlari.forEach(buton => {
+  buton.addEventListener("click", () => urunSec(buton.dataset.urun));
+});
+
+["bitki-degistir-basarili", "bitki-degistir-emin-degil"].forEach(id => {
+  document.getElementById(id).addEventListener("click", bitkiyiDegistir);
+});
+
+// Açılışta hiçbir ürün seçili değil: fotoğraf butonu baştan pasif olmalı.
+butonlariTazele();
+
+
+/* ---- 4. Önizleme ve bellek temizliği ------------------------
    createObjectURL, dosyayı bellekte TUTAN geçici bir adres üretir ve
    sekme kapanana kadar kendiliğinden bırakılmaz. Her yeni fotoğrafta
    öncekini revokeObjectURL ile bırakıyoruz; yoksa 20 deneme sonunda
@@ -869,7 +1020,7 @@ function onizlemeGoster(dosya) {
 }
 
 
-/* ---- 4. Dosya seçilince ------------------------------------- */
+/* ---- 5. Dosya seçilince ------------------------------------- */
 fotoSecici.addEventListener("change", () => {
   const dosya = fotoSecici.files[0];
 
@@ -895,15 +1046,27 @@ fotoSecici.addEventListener("change", () => {
     return;
   }
 
+  /* Dosyayı saklıyoruz: ürün değişirse "aynı fotoğrafı yeni bitkiyle
+     gönder" diyebilmemiz için elimizde kalması gerekiyor. Resim
+     olmadığı için yukarıda döndüğümüz durumda sonDosya boş kalır --
+     istediğimiz de bu: gönderilemeyecek bir dosyayı saklamıyoruz. */
+  sonDosya = dosya;
+
   onizlemeGoster(dosya);
   tahminGonder(dosya);
 });
 
 
-/* ---- 5. Sunucuya gönder ------------------------------------- */
+/* ---- 6. Sunucuya gönder ------------------------------------- */
 async function tahminGonder(dosya) {
+  /* Güvenlik ağı: ürün seçilmeden buraya gelinemez (buton pasif), ama
+     maskesiz/ürünsüz bir istek göndermek sessizce kalibrasyonu geçersiz
+     kılardı -- bu yüzden açıkça duruyoruz (CLAUDE.md Kısıt 5). */
+  if (!dosya || !seciliUrun) return;
+
   durumGoster(onizlemeAlani, yukleniyorAlani);
-  butonKilitle(true);
+  istekSuruyor = true;
+  butonlariTazele();
   duyur("Fotoğraf gönderildi, analiz ediliyor.");
 
   /* AbortController: sunucu takılıp kalırsa fetch sonsuza kadar bekler.
@@ -917,6 +1080,16 @@ async function tahminGonder(dosya) {
     // (main.py -> def predict(file: UploadFile = File(...))). Farklı
     // yazarsak FastAPI alanı bulamaz ve 422 döner.
     form.append("file", dosya);
+
+    /* "urun" ZORUNLU bir alan (main.py -> urun: str = Form(...)).
+       Eksik gönderirsek 422 alırız. Değerler backend'in beklediğiyle
+       birebir aynı: "domates" / "patates" / "biber".
+
+       Neden zorunlu: sıcaklık (T=1.95) ve eşikler (0.70 / 0.80) yalnızca
+       ÜRÜN MASKESİ uygulanmış çıktılar üzerinde ölçüldü. Maskesiz bir yol
+       açılsaydı sistem kalibre olduğunu sanarak kalibre olmayan güven
+       skorları gösterirdi. */
+    form.append("urun", seciliUrun);
 
     /* Content-Type header'ını BİLEREK set etmiyoruz. multipart gövdesi,
        parçaları ayıran rastgele bir "boundary" dizesi içerir ve bu dize
@@ -957,7 +1130,8 @@ async function tahminGonder(dosya) {
     /* finally: başarıda da hatada da çalışır. Butonu try'ın sonunda
        açsaydık, hata olduğunda sonsuza kadar kilitli kalırdı. */
     clearTimeout(sayac);
-    butonKilitle(false);
+    istekSuruyor = false;
+    butonlariTazele();
   }
 }
 
@@ -975,7 +1149,7 @@ async function sunucuHataMesaji(cevap) {
 }
 
 
-/* ---- 6. Sonucu ekrana bas ----------------------------------- */
+/* ---- 7. Sonucu ekrana bas ----------------------------------- */
 function sonucuGoster(veri) {
   if (veri.durum === "basarili") {
     basariliGoster(veri);
@@ -988,7 +1162,46 @@ function sonucuGoster(veri) {
   }
 }
 
+/* "Seçilen bitki: Domates" satırı. Hangi değeri yazdığımız önemli:
+   kendi seciliUrun'ümüzü DEĞİL, sunucunun geri yansıttığı veri.urun'u
+   gösteriyoruz. Sonuç bu ürüne göre hesaplandı; ikisi bir şekilde ayrı
+   düşerse ekranda görünmesi gereken şey sunucunun kullandığı ürün. */
+function seciliBitkiyiYaz(eleman, urun) {
+  eleman.textContent = "Seçilen bitki: " + urunAdi(urun);
+}
+
+/* Aday listesini kurar. innerHTML YOK: adlar sunucudan geliyor ve
+   içindeki bir HTML parçası tarayıcıda çalıştırılmamalı. createElement +
+   textContent ile kurunca metin her zaman metin olarak kalıyor. */
+function adaylariYaz(adaylar) {
+  const liste = Array.isArray(adaylar) ? adaylar : [];
+
+  // replaceChildren(): önceki tahminin adaylarını tek hamlede siler.
+  adayListesi.replaceChildren();
+
+  liste.forEach(aday => {
+    const satir = document.createElement("li");
+
+    const ad = document.createElement("span");
+    ad.textContent = aday.hastalik_tr || aday.hastalik || "Bilinmeyen sınıf";
+
+    const yuzde = document.createElement("span");
+    yuzde.className = "aday-yuzde";
+    // Çiftçi için virgülden sonrası bilgi değil gürültü: tam sayıya yuvarla.
+    yuzde.textContent = "%" + Math.round(typeof aday.guven === "number" ? aday.guven : 0);
+
+    satir.append(ad, yuzde);
+    adayListesi.appendChild(satir);
+  });
+
+  /* Aday hiç gelmezse başlığı da gizliyoruz: "Yaprak şunlardan biri
+     olabilir:" deyip altını boş bırakmak bozuk görünür. */
+  adayBolumu.classList.toggle("gizli", liste.length === 0);
+}
+
 function basariliGoster(veri) {
+  seciliBitkiyiYaz(bitkiBasarili, veri.urun);
+
   /* Sağlıklı mı hasta mı? Kararı HAM İngilizce sınıf adına bakarak
      veriyoruz, Türkçe metne değil: ham ad modelin sabit çıktısı,
      Türkçe metin ise bir gün yeniden yazılabilir. */
@@ -1022,11 +1235,17 @@ function basariliGoster(veri) {
 }
 
 function eminDegilGoster(veri) {
-  /* en_yakin_tahmin_tr alanını BİLEREK göstermiyoruz: sistem "tanıyamadım"
-     dedikten sonra bir tahmin fısıldarsa çiftçi onu cevap sanar. Eşiğin
-     0.95 seçilme gerekçesi de buydu — yanlış yönlendirmektense susmak. */
+  seciliBitkiyiYaz(bitkiEminDegil, veri.urun);
+
+  /* en_yakin_tahmin_tr alanını BİLEREK göstermiyoruz, yerine aday
+     LİSTESİNİ gösteriyoruz. Gerekçe: tek bir tahmin, sistem "tanıyamadım"
+     dedikten sonra bile cevap gibi görünür ve çiftçi onu cevap sanar.
+     Liste ise belirsizliği açıkça gösteriyor -- hem de boşuna değil:
+     eşiğin altında doğru cevap %88.4 oranında adayların içinde. */
   eminDegilMesaji.textContent = veri.mesaj
     || "Bu yaprağı net tanıyamadım. Daha yakın ve net bir fotoğraf çeker misiniz?";
+
+  adaylariYaz(veri.adaylar);
 
   durumGoster(onizlemeAlani, sonucEminDegil);
   sonucaGec(sonucEminDegil);
@@ -1053,7 +1272,7 @@ function hataGoster(mesaj, baslik = "Bir sorun oluştu") {
 }
 
 
-/* ---- 7. Baştan başla ---------------------------------------- */
+/* ---- 8. Baştan başla ---------------------------------------- */
 function sifirla() {
   onizlemeTemizle();
 
@@ -1063,7 +1282,15 @@ function sifirla() {
      change olayı tetiklenmez ve ekran donmuş görünür. */
   fotoSecici.value = "";
 
-  butonKilitle(false);
+  /* Saklanan dosyayı bırakıyoruz. Sebep: "Yeni Fotoğraf"a basıp dosya
+     seçiciyi iptal eden kullanıcı sonra bitkiyi değiştirirse, ekranda
+     ARTIK OLMAYAN bir fotoğrafın gönderilmesi teklif edilirdi.
+     seciliUrun ise bilerek korunuyor: çiftçi aynı tarlada aynı bitkiyle
+     üst üste fotoğraf çekiyor, her seferinde yeniden seçtirmek işkence. */
+  sonDosya = null;
+
+  istekSuruyor = false;
+  butonlariTazele();
   durumGoster();  // argümansız çağrı: hepsini gizle, Durum A'ya dön
 
   /* Bar bir sonraki sonuçta yine sıfırdan büyüsün; yoksa önceki yüzdeden
@@ -1089,7 +1316,7 @@ function sifirla() {
    kendiliğinden dosya penceresi açamaz. Burada bir "click" işleyicisinin
    içindeyiz, yani şart sağlanıyor.
 
-   Sıra önemli: sifirla() butonun kilidini açıyor (butonKilitle(false)).
+   Sıra önemli: sifirla() butonun kilidini açıyor (butonlariTazele).
    Devre dışı bir input'a click() çağırmak hiçbir şey yapmazdı. */
 function yeniFotograf() {
   sifirla();           // önizlemeyi ve eski sonucu temizler, kilidi açar
@@ -1104,6 +1331,12 @@ function yeniFotograf() {
 /* "Tekrar Dene" bilerek sadece başa dönüyor: hata ekranında kullanıcı önce
    ne olduğunu okumak isteyebilir, yüzüne dosya penceresi açmak aceleci olur. */
 document.getElementById("tekrar-dene").addEventListener("click", sifirla);
+
+/* Onay kartının iki çıkışı: aynı fotoğrafı yeni bitkiyle gönder, ya da
+   yeni bir fotoğraf çek. İstek ancak bu düğmeye basılırsa gidiyor --
+   ürün düğmesine basmak tek başına hiçbir şey göndermiyor. */
+onayGonder.addEventListener("click", () => tahminGonder(sonDosya));
+document.getElementById("onay-yeni-foto").addEventListener("click", yeniFotograf);
 </script>
 </body>
 </html>

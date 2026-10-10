@@ -72,7 +72,7 @@ Amaç: v3'ü yeniden eğitmeden daha kullanışlı hale getirmek ve hataların n
 - [x] Kalibrasyon: saha val setinde temperature scaling — `T = 1.95`; test setinde ECE 15.41 → 5.17
 - [x] Güven eşiği: saha val setinde seçildi — 0.70, "sağlıklı" tahminler için 0.80 *(0.80 veriyle değil güvenlik gerekçesiyle)*
 - [x] Backend'e taşı: `predict.py` + `main.py` + arayüz; üç sayı `model_config.json`'a alındı
-- [x] Ürün tutarlılık kontrolü: **ölçüldü** — yakalama %82.8, yanlış alarm %4.6. *Henüz kodda yok, bir sonraki PR'da eklenecek.*
+- [x] Ürün tutarlılık kontrolü: **eklendi** (`predict.py` → `urun_uyarisi`, arayüzde sonuç kartının üstünde uyarı). Eşik `urun_esigi = 0.20`, saha val'da seçildi (yakalama %85.6, yanlış alarm %4.3); test (569): yakalama %82.8, yanlış alarm %4.6, yanlış ürünle emin görünen yanlış cevap %55.3 → %7.5. Yanlış alarm ürüne göre değişiyor (test, doğru ürün seçildiğinde): domates (10 sınıf) n=365 %1.6, patates (3 sınıf) n=153 %7.2, biber (2 sınıf) n=51 %17.6 — biber oranı 51 görüntüden, kesin değil. Ürün payı sınıf sayısından etkilendiği için 2 sınıflı biber tek eşikte dezavantajlı (bkz. Aşama 2 düzeltme maddesi).
 - [ ] Grad-CAM: test setinden 20-30 yanlış tahminin ısı haritası; her birini "arka plan / yaprakta yanlış bölge / doğru lezyon, yanlış sınıf" olarak etiketle
 - [ ] TTA: 4-5 augment'li kopyanın softmax ortalaması
 - [ ] Soru soran model (prototip): en çok karışan sınıf çiftlerinden 5-6 soruluk belirti havuzu, bilgi kazancıyla soru seçimi, Bayes güncellemesi
@@ -81,7 +81,9 @@ Amaç: v3'ü yeniden eğitmeden daha kullanışlı hale getirmek ve hataların n
 
 ### Neden ürün tutarlılık kontrolü gerekiyor
 
-Maske, seçilen ürünün dışındaki sınıfları kestiği için **yanlış ürün seçimi sessiz kalmıyor, emin görünen yanlış bir cevap üretiyor**: olasılık her zaman izin verilen sınıflara dağıtılıyor ve güven yüksek çıkıyor. Test görüntüleri bilerek yanlış ürünle değerlendirildiğinde (n=1.138) bu oran **%55.3**. Şu anki önlem yalnızca arayüzdedir (seçilen bitki her sonuçta görünür, ürün değişince fotoğraf kendiliğinden gönderilmez). Ölçülen otomatik kontrol bu boşluğu kapatacak.
+Maske, seçilen ürünün dışındaki sınıfları kestiği için **yanlış ürün seçimi sessiz kalmıyor, emin görünen yanlış bir cevap üretiyor**: olasılık her zaman izin verilen sınıflara dağıtılıyor ve güven yüksek çıkıyor. Test görüntüleri bilerek yanlış ürünle değerlendirildiğinde (n=1.138) bu oran **%55.3**. Arayüz önlemi (seçilen bitki her sonuçta görünür, ürün değişince fotoğraf kendiliğinden gönderilmez) yerinde duruyor; artık buna **ölçülmüş otomatik kontrol** eklendi: maskeden önceki T-ölçekli softmax'ta seçilen ürünün payı `0.20`'nin altındaysa uyarı veriliyor ve emin görünen yanlış cevap oranı **%55.3 → %7.5**'e düşüyor.
+
+Yanlış alarm oranı ürüne göre belirgin biçimde değişiyor (test, doğru ürün seçildiğinde): domates %1.6 (n=365), patates %7.2 (n=153), **biber %17.6 (n=51)**. Sebep: ürün payı, ürünün sınıf sayısından etkilenir — model kararsız kaldığında olasılık 15 sınıfa yayılır ve 2 sınıflı biberin payı doğal olarak küçük kalır, bu yüzden tek eşik biberi dezavantajlı duruma düşürür. Biber oranı 51 görüntüden geldiği için kesin değil ama domatesle fark belirgin. **Neden şimdilik tek eşik:** saha val setinde sadece 15 biber görüntüsü var; ürüne özel eşik ayarlamaya yetmez. Uyarı sonucu engellemiyor, yalnızca "doğru bitkiyi mi seçtin?" diye soruyor; o yüzden fazla alarm bile güvenliği bozmuyor, sadece biber kullanıcısına daha sık soruyor.
 
 **Paralel iş:** yeni veri hazırlığı (Aşama 2'nin hazırlık kısmı).
 **Kapı:** Kalibre edilmiş eşik `predict.py`'ye işlendi ✅; Grad-CAM ile Aşama 4 önceliğinin belirlenmesi bekliyor.
@@ -104,6 +106,7 @@ Eğitim:
 - [ ] `WeightedRandomSampler` kaynak ağırlıklarını yeni setleri ayrı kaynak sayacak şekilde güncelle
 - [ ] v4'ü eğit, v3 ile kıyasla
 - [ ] Sonuç şaşırtıcıysa setleri tek tek çıkararak sorunlu kaynağı bul
+- [ ] Ürün tutarlılık kontrolünü sınıf sayısına göre düzelt (ürüne özel eşik veya normalize edilmiş pay); yeni saha verisiyle biber örnekleri arttıktan sonra val'da ölç
 
 | Veri seti | İçerik | Bizim için | Lisans | Dikkat |
 | --- | --- | --- | --- | --- |
@@ -227,7 +230,7 @@ Saha val her deneyde, test seti sadece aşama kapılarında doldurulur.
 
 | Risk | Etki | Önlem |
 | --- | --- | --- |
-| Yanlış ürün seçimi | Emin görünen yanlış cevap (yanlış ürünle n=1.138'de %55.3) | Şimdilik arayüz: seçilen bitki her sonuçta görünür, ürün değişince sorulur. Ölçülen otomatik kontrol sonraki PR'da |
+| Yanlış ürün seçimi | Emin görünen yanlış cevap (yanlış ürünle n=1.138'de %55.3) | Arayüz (seçilen bitki her sonuçta görünür, ürün değişince sorulur) **+ ölçülmüş otomatik kontrol** (`urun_esigi = 0.20`): emin görünen yanlış cevap %55.3 → %7.5. Yanlış alarm biberde yüksek (%17.6, n=51); sınıf sayısına göre düzeltme Aşama 2'de |
 | Veri setleri arası çakışma | Doğruluk şişer | Her kaynakta phash taraması |
 | Yanlış remap | Model sessizce yanlış öğrenir | Eşleme tablosu + örneklere gözle bakış |
 | Soru tablosundaki olasılıklar uydurma | Soru soran mod yanlış yönlendirir | Uzman veya kaynak doğrulaması |

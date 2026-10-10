@@ -140,11 +140,18 @@ Yukarıdaki sayılar şu sınırlar içinde geçerlidir:
 - **Yanlış ürün seçimi en büyük risk.** Test görüntüleri bilerek yanlış ürünle
   değerlendirildiğinde (n=1.138) sistem **%55.3** oranında *emin görünen yanlış*
   bir cevap üretti — maske doğru sınıfı kestiği için olasılık kalan sınıflara
-  dağılıyor ve güven yüksek çıkıyor. Şu anki önlem arayüzdedir: seçilen bitki
-  her sonuçta gösterilir ve ürün değiştirildiğinde fotoğraf kendiliğinden
-  yeniden gönderilmez, kullanıcıya sorulur. *(Planlanan: ölçülmüş bir otomatik
-  tutarlılık kontrolü — yakalama %82.8, yanlış alarm %4.6 — bir sonraki PR'da
-  eklenecek. Şu an sistemde **yok**.)*
+  dağılıyor ve güven yüksek çıkıyor. Buna karşı iki önlem var. Arayüz: seçilen
+  bitki her sonuçta gösterilir, ürün değiştirildiğinde fotoğraf kendiliğinden
+  yeniden gönderilmez. **Otomatik kontrol (artık sistemde):** maskeden önceki
+  T-ölçekli softmax'ta seçilen ürünün payı `0.20`'nin altındaysa "bu fotoğraf
+  seçtiğiniz bitkiye benzemiyor" uyarısı verilir; yakalama %82.8, yanlış alarm
+  %4.6, ve emin görünen yanlış cevap oranı **%55.3 → %7.5**'e düşer (test, 569).
+  Uyarı sonucu **engellemez**, yalnızca sorar.
+- **Uyarının yanlış alarmı biberde daha sık.** Genel yanlış alarm %4.6 ürüne
+  göre dağılıyor (test, doğru ürün seçildiğinde): domates %1.6, patates %7.2,
+  **biber %17.6** (n=51, kesin değil). Ürün payı sınıf sayısından etkilendiği
+  için 2 sınıflı biber tek eşikte dezavantajlı — **biber seçildiğinde bu uyarı
+  daha sık çıkar.** Sınıf sayısına göre düzeltme yol haritasında (Aşama 2).
 - **Eşik seçimi gürültülü.** `T = 1.95` ve 0.70 eşiği, PlantDoc eğitim
   bölümünden ayrılmış **163 görüntülük** ayrı bir saha val setinde seçildi
   (test setiyle phash karşılaştırılıp kopyaları temizlendi). 569'luk test seti
@@ -625,9 +632,13 @@ seçilmişti. Artık sıcaklık ve eşikler 163 görüntülük **ayrı** bir sah
 setinde seçiliyor; 569'luk test seti yalnızca bir kez raporlandı. Kayıt:
 [yol haritası, Aşama 0–1](docs/model-yol-haritasi.md).
 
-**Sıradaki iş — ürün tutarlılık kontrolü.** Yanlış ürün seçimi şu an en büyük
-risk ([Sınırlar](#sınırlar)); otomatik bir kontrol ölçüldü ve bir sonraki PR'da
-eklenecek. Şu an sistemde yok.
+### 1b. Ürün tutarlılık kontrolü — ✅ yapıldı
+
+Yanlış ürün seçimi en büyük risk ([Sınırlar](#sınırlar)). Maskeden önceki
+T-ölçekli softmax'ta seçilen ürünün payı `0.20`'nin altındaysa sistem artık
+uyarıyor (sonucu engellemeden). Emin görünen yanlış cevap oranı %55.3 → %7.5.
+Yanlış alarm ürüne göre değişiyor (biber %17.6, n=51); sınıf sayısına göre
+düzeltme Aşama 2'de. Kayıt: [yol haritası](docs/model-yol-haritasi.md).
 
 ### 2. Kapsam dışı yaprakları reddet
 

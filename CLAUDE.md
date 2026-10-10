@@ -145,6 +145,14 @@ Tipler:
 
 Bir commit tek bir mantıksal değişiklik olmalı. "Her şeyi tek commit'e" tıkma.
 
+### Commit boyutu ve bölme
+- Her commit TEK bir mantıksal değişiklik içerir ve kendi başına tüm testleri geçer (e2e dahil). Kırmızı ara commit olmaz; kaçınılmazsa commit mesajında gerekçesiyle yazılır.
+- Bölme katmana göre değil, davranışa göre yapılır: bir davranışın kodu ve testi aynı commit'tedir. (Örnek: backend'e yeni bir cevap alanı eklemek ile arayüzün onu göstermesi, sözleşme testi yüzünden birlikte yeşil olur; ayrı commit'lere bölünmez.)
+- Yeniden düzenleme (refactor) ile davranış değişikliği aynı commit'te olmaz.
+- Dokümantasyon ayrı bir `docs:` commit'i olabilir.
+- Uyarı eşiği: test ve doküman hariç kod diff'i yaklaşık 150 satırı geçecekse, kod yazmadan önce bölme planı öner ve onay al. Bölünemiyorsa nedenini yaz.
+- Commit'ten önce: `git diff --cached --stat` çıktısı ve 2-3 cümlelik bir "bu commit nasıl okunmalı" notu (hangi dosyadan başlanmalı, asıl değişiklik nerede).
+
 ---
 
 ## 7. Kod kuralları

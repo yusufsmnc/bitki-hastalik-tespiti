@@ -46,6 +46,13 @@
       --emin-degil-metin:  #4a5f6a;
       --hata-serit:        #c62828;
       --hata-metin:        #c62828;
+      /* Ürün tutarlılık uyarısı: bir hata değil, bir soru. Kırmızı (hata)
+         suçlayıcı, gri (emin-değil) fazla sessiz; kehribar "dikkat et"
+         diyor. Hastalık turuncusundan ayrı bir ton seçildi ki ikisi
+         karışmasın. Metin açık zeminde okunacak kadar koyu. */
+      --uyari-serit:       #e6a700;
+      --uyari-metin:       #7a5600;  /* beyaz/kehribar zeminde AA */
+      --uyari-zemin:       #fdf6e3;
 
       --kose:  14px;                      /* yuvarlak köşe yarıçapı */
       --golge: 0 1px 3px rgba(0,0,0,.08); /* kartlarda hafif derinlik */
@@ -87,6 +94,9 @@
         --emin-degil-metin: #b0bec5;  /* 8.1:1 */
         --hata-serit:       #e57373;
         --hata-metin:       #ef9a9a;  /* 7.3:1 */
+        --uyari-serit:      #ffca28;
+        --uyari-metin:      #ffd54f;  /* koyu kartta 9.6:1 */
+        --uyari-zemin:      #2a2616;  /* kehribara çalan koyu zemin */
 
         /* Koyu zeminde hafif gölge görünmez; biraz güçlendiriyoruz. */
         --golge: 0 1px 3px rgba(0,0,0,.5);
@@ -478,6 +488,18 @@
       color: var(--metin);
     }
 
+    /* Ürün tutarlılık uyarısı kutusu. Sonuç kartının ÜSTÜNDE, kendi
+       kehribar şeridi ve zeminiyle duruyor. .kart iskeletini (dolgu, köşe,
+       gölge) paylaşır; --serit ve --etiket'i kendi renklerine ayarlar ki
+       içindeki .durum-etiketi doğru rengi alsın. Sol şerit diğer sonuç
+       kartlarıyla aynı dilde: renk anlam taşıyor ama metin de yazılı. */
+    .urun-uyari {
+      --serit: var(--uyari-serit);
+      --etiket: var(--uyari-metin);
+      border-left: 6px solid var(--serit);
+      background: var(--uyari-zemin);
+    }
+
 
     /* ===== 9. İKİNCİL BUTONLAR ================================== */
     /* "Yeni Fotoğraf" / "Tekrar Dene": dokunma alanı ana butonla aynı
@@ -655,6 +677,25 @@
     </section>
 
 
+    <!-- ===== ÜRÜN TUTARLILIK UYARISI ===== -->
+    <!-- Sonuç kartının ÜSTÜNDE görünür (DOM'da ondan önce). Yalnızca
+         backend veri.urun_uyarisi=true derse açılır: fotoğraf seçilen
+         bitkiye benzemiyor demektir. Sonucu ENGELLEMEZ, durumu değiştirmez;
+         sadece "doğru bitkiyi mi seçtin?" diye sorar. Mesajı JS textContent
+         ile yazar (ürün değeri sunucudan gelir, HTML olarak çalışmamalı).
+         Renk tek başına yetmesin diye başlık + ikon + metin birlikte var. -->
+    <section class="kart urun-uyari gizli" id="urun-uyari-alani">
+      <p class="durum-etiketi">
+        <span aria-hidden="true">&#9888;</span> Ürün uyuşmuyor olabilir
+      </p>
+      <p class="sonuc-mesaji" id="urun-uyari-mesaji"></p>
+      <!-- Mevcut "Bitkiyi değiştir" akışına götürür; kendisi istek göndermez. -->
+      <button type="button" class="ikincil-buton" id="bitki-degistir-uyari">
+        Bitkiyi değiştir
+      </button>
+    </section>
+
+
     <!-- ===== DURUM C - SONUÇ: BAŞARILI ===== -->
     <!-- İçindeki metinler ÖRNEKTİR; JS gerçek cevapla değiştirir.
          Sınıfı da (sonuc-hastalik / sonuc-saglikli) JS belirler.
@@ -801,6 +842,8 @@ const adayListesi     = document.getElementById("aday-listesi");
 const hataMesaji      = document.getElementById("hata-mesaji");
 const hataEtiketi     = document.getElementById("hata-etiketi");
 const durumAnonsu     = document.getElementById("durum-anonsu");
+const urunUyariAlani  = document.getElementById("urun-uyari-alani");
+const urunUyariMesaji = document.getElementById("urun-uyari-mesaji");
 
 /* querySelectorAll bir NodeList döndürür; Array'e çeviriyoruz ki find
    gibi dizi yöntemlerini de kullanabilelim. */
@@ -847,7 +890,7 @@ let istekSuruyor = false;
    Böylece iki sonuç kartının aynı anda ekranda kalması imkânsız. */
 const DURUM_BOLUMLERI = [
   onizlemeAlani, yukleniyorAlani, onayAlani,
-  sonucBasarili, sonucEminDegil, sonucHata
+  urunUyariAlani, sonucBasarili, sonucEminDegil, sonucHata
 ];
 
 function durumGoster(...gorunecekler) {
@@ -992,7 +1035,7 @@ urunButonlari.forEach(buton => {
   buton.addEventListener("click", () => urunSec(buton.dataset.urun));
 });
 
-["bitki-degistir-basarili", "bitki-degistir-emin-degil"].forEach(id => {
+["bitki-degistir-basarili", "bitki-degistir-emin-degil", "bitki-degistir-uyari"].forEach(id => {
   document.getElementById(id).addEventListener("click", bitkiyiDegistir);
 });
 
@@ -1170,6 +1213,20 @@ function seciliBitkiyiYaz(eleman, urun) {
   eleman.textContent = "Seçilen bitki: " + urunAdi(urun);
 }
 
+/* Ürün tutarlılık uyarısının mesajını hazırlar ve gösterilip gösterilmeyeceğini
+   söyler. Backend veri.urun_uyarisi=true derse fotoğraf seçilen bitkiye
+   benzemiyor demektir; uyarıyı göstereceğiz. Göstermeyi KENDİ yapmıyor:
+   kararı sonucu basan fonksiyona bırakıyor ki uyarı kartı her zaman sonuç
+   kartıyla AYNI durumGoster çağrısında açılsın (ikisi birbirinden ayrı
+   düşmesin). Metni textContent ile yazıyoruz: urun sunucudan geliyor. */
+function urunUyarisiniHazirla(veri) {
+  if (!veri.urun_uyarisi) return false;
+  urunUyariMesaji.textContent =
+    "Bu fotoğraf seçtiğiniz bitkiye (" + urunAdi(veri.urun) + ") pek benzemiyor. " +
+    "Doğru bitkiyi seçtiğinizden emin misiniz?";
+  return true;
+}
+
 /* Aday listesini kurar. innerHTML YOK: adlar sunucudan geliyor ve
    içindeki bir HTML parçası tarayıcıda çalıştırılmamalı. createElement +
    textContent ile kurunca metin her zaman metin olarak kalıyor. */
@@ -1230,7 +1287,12 @@ function basariliGoster(veri) {
   // Bozuk bir değer barı taşırmasın diye 0-100 arasına sıkıştırıyoruz.
   guvenDolgu.style.width = Math.max(0, Math.min(100, guven)) + "%";
 
-  durumGoster(onizlemeAlani, sonucBasarili);
+  /* Ürün uyarısı varsa sonuç kartıyla AYNI geçişte, onun üstünde açılır.
+     Sonucu engellemez; sadece "doğru bitkiyi mi seçtin?" diye sorar. */
+  const uyari = urunUyarisiniHazirla(veri);
+  durumGoster(...(uyari
+    ? [onizlemeAlani, urunUyariAlani, sonucBasarili]
+    : [onizlemeAlani, sonucBasarili]));
   sonucaGec(sonucBasarili);
 }
 
@@ -1247,7 +1309,11 @@ function eminDegilGoster(veri) {
 
   adaylariYaz(veri.adaylar);
 
-  durumGoster(onizlemeAlani, sonucEminDegil);
+  /* Ürün uyarısı varsa sonuç kartıyla AYNI geçişte, onun üstünde açılır. */
+  const uyari = urunUyarisiniHazirla(veri);
+  durumGoster(...(uyari
+    ? [onizlemeAlani, urunUyariAlani, sonucEminDegil]
+    : [onizlemeAlani, sonucEminDegil]));
   sonucaGec(sonucEminDegil);
 }
 

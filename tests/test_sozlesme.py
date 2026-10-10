@@ -159,6 +159,22 @@ def test_adaylar_arayuzde_gosteriliyor(emin_degil_cevap):
     assert "Yaprak şunlardan biri olabilir" in HTML
 
 
+def test_urun_uyarisi_arayuzde_okunuyor(basarili_cevap, emin_degil_cevap):
+    """urun_uyarisi backend'in HER iki cevapta gönderdiği bir alan; arayüz
+    onu okuyup yanlış ürün uyarısını gösteriyor olmalı.
+
+    Yanlış ürün seçimi sistemin en büyük riski (CLAUDE.md Bölüm 1): maske
+    yanlış sınıfları keser, model yine emin görünür. Bu bayrak, fotoğrafın
+    seçilen bitkiye benzemediğini kullanıcıya SORARAK yakalar; engellemez.
+    """
+    assert "urun_uyarisi" in basarili_cevap
+    assert "urun_uyarisi" in emin_degil_cevap
+    assert "veri.urun_uyarisi" in HTML
+    # Uyarı metni sunucudan gelen ürün adını içeriyor; XSS'e kapalı olması
+    # için textContent ile yazılmalı (innerHTML değil).
+    assert "urunUyariMesaji.textContent" in HTML
+
+
 def test_en_yakin_tahmin_arayuzde_gosterilmiyor():
     """Bu bir ürün kararı, kaza değil -- testle sabitliyoruz ki ileride
     biri 'faydalı olur' diye ekleyince durup düşünsün.

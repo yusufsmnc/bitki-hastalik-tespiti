@@ -87,6 +87,38 @@ def logitler_kur(hedef_olasilik, kazanan, izinli, maskeli_logit=50.0):
     return logitler
 
 
+def maskesiz_pay_logitleri(hedef_pay, izinli, T=None):
+    """MASKEDEN ÖNCE (tüm sınıflar açık) T-ölçekli softmax'ta, seçilen ürünün
+    payını tam olarak hedef_pay yapan logit listesi üretir.
+
+    Ürün tutarlılık uyarısının baktığı sayı budur: pay URUN_ESIGI'nin
+    altındaysa uyarı çıkar. logitler_kur maskeden SONRAKİ olasılığı kurar;
+    bu ise maskeden ÖNCEKİ payı kurar, ikisi farklı şeyler.
+
+    izinli sınıflara a, diğerlerine 0 logit verilir. k=len(izinli),
+    n=toplam sınıf olmak üzere:
+        pay = k*e^(a/T) / (k*e^(a/T) + (n-k))
+    Buradan e^(a/T) = hedef*(n-k) / (k*(1-hedef)), yani a = T*ln(...).
+
+    T varsayılanı predict.SICAKLIK; pay hesabında T'nin etkisini göstermek
+    isteyen test farklı bir T verebilir.
+    """
+    if T is None:
+        T = predict.SICAKLIK
+    if not 0.0 < hedef_pay < 1.0:
+        raise ValueError("hedef_pay 0 ile 1 arasında olmalı")
+
+    n = len(predict.class_names)
+    k = len(izinli)
+    r = hedef_pay * (n - k) / (k * (1 - hedef_pay))
+    a = T * math.log(r)
+
+    logitler = [0.0] * n
+    for i in izinli:
+        logitler[i] = a
+    return logitler
+
+
 @pytest.fixture
 def logit_ver(monkeypatch):
     """Verilen logit'leri döndüren stub'ı gerçek modelin yerine takar."""
@@ -285,6 +317,109 @@ def test_sicaklik_guveni_dusurur(logit_ver):
         kalibresiz = tahmin_et_goruntu(yaprak(), "domates")["guven"]
 
     assert kalibreli < kalibresiz
+
+
+# --- Ürün tutarlılık uyarısı -------------------------------------------
+# Yanlış ürün seçildiğinde model emin görünen yanlış bir cevap verir:
+# olasılık her zaman izin verilen sınıflara dağıtılır. Önlem, MASKEDEN ÖNCE
+# seçilen ürünün sınıflarına düşen payı ölçmek; pay URUN_ESIGI'nin altındaysa
+# "urun_uyarisi": True döner. Uyarı sonucu ENGELLEMEZ, sadece soru sorar.
+
+def test_olasilik_baska_urunde_toplaninca_uyari_cikar(logit_ver):
+    """Tüm sınıflar açıkken kütle çoğunlukla BAŞKA ürüne düşüyorsa uyarı çıkar.
+
+    Domatesin bir sınıfına ezici logit verip ürünü "biber" seçiyoruz:
+    maskesiz payın neredeyse tamamı domatese gider, biberin payı eşiğin
+    çok altında kalır. Yanlış ürün seçiminin tam senaryosu bu.
+    """
+    logitler = [0.0] * len(predict.class_names)
+    logitler[DOMATES_HASTALIK] = 50.0
+    logit_ver(logitler)
+
+    sonuc = tahmin_et_goruntu(yaprak(), "biber")
+
+    assert sonuc["urun_uyarisi"] is True
+
+
+def test_olasilik_secilen_urunde_toplaninca_uyari_cikmaz(logit_ver):
+    """Kütle seçilen ürünün sınıfında toplanıyorsa uyarı çıkmaz."""
+    logitler = [0.0] * len(predict.class_names)
+    logitler[BIBER_HASTALIK] = 50.0
+    logit_ver(logitler)
+
+    sonuc = tahmin_et_goruntu(yaprak(), "biber")
+
+    assert sonuc["urun_uyarisi"] is False
+
+
+def test_esigin_hemen_altinda_uyari_true(logit_ver):
+    """Pay 0.19 (eşik 0.20'nin hemen altında) -> uyarı."""
+    izinli = urun_indeksleri("domates")
+    logit_ver(maskesiz_pay_logitleri(0.19, izinli))
+
+    assert tahmin_et_goruntu(yaprak(), "domates")["urun_uyarisi"] is True
+
+
+def test_esigin_hemen_ustunde_uyari_false(logit_ver):
+    """Pay 0.21 (eşik 0.20'nin hemen üstünde) -> uyarı yok."""
+    izinli = urun_indeksleri("domates")
+    logit_ver(maskesiz_pay_logitleri(0.21, izinli))
+
+    assert tahmin_et_goruntu(yaprak(), "domates")["urun_uyarisi"] is False
+
+
+def test_t_pay_hesabinda_uygulanir(logit_ver):
+    """Pay hesabında SICAKLIK gerçekten uygulanıyor mu?
+
+    AYNI logitlerle T=1 ve T=1.95'te uyarının farklı çıktığını gösteriyoruz.
+    T>1 dağılımı düzleştirir: 2 sınıflı domatesin payı uniform değere
+    (2/6≈0.33) doğru çekilir. Logitleri öyle kuruyoruz ki T=1'de pay 0.15
+    (<0.20, uyarı var), T=1.95'te ise eşiğin üstüne çıksın (uyarı yok).
+    T atlanırsa bu iki sonuç aynı olurdu ve 0.20 eşiği anlamını yitirirdi.
+    """
+    izinli = urun_indeksleri("domates")
+    logitler = maskesiz_pay_logitleri(0.15, izinli, T=1.0)
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(predict, "SICAKLIK", 1.0)
+        logit_ver(logitler)
+        t_bir = tahmin_et_goruntu(yaprak(), "domates")["urun_uyarisi"]
+
+    logit_ver(logitler)
+    t_kalibreli = tahmin_et_goruntu(yaprak(), "domates")["urun_uyarisi"]
+
+    assert t_bir is True           # T=1: pay 0.15 < 0.20
+    assert t_kalibreli is False    # T=1.95: pay eşiğin üstüne çıktı
+
+
+def test_uyari_durumu_ve_adaylari_degistirmez(logit_ver):
+    """Uyarı yalnızca ek bir bayrak: tahmin, durum, güven ve adaylar aynen kalır.
+
+    Maskeli tahmin yalnızca İZİNLİ sınıfların logitlerine bağlı; maskelenen
+    (ürün dışı) sınıfların değeri tahmini etkilemez ama MASKESİZ payı -- yani
+    uyarıyı -- belirler. Bu ayrımı kullanarak aynı tahmini iki kez, bir kez
+    uyarılı bir kez uyarısız üretiyoruz ve sonucun geri kalanının birebir
+    aynı kaldığını doğruluyoruz.
+    """
+    izinli = urun_indeksleri("domates")
+
+    # maskeli_logit=50 -> ürün dışı sınıflar baskın -> maskesiz pay ~0 -> uyarı
+    logit_ver(logitler_kur(0.90, DOMATES_HASTALIK, izinli, maskeli_logit=50.0))
+    uyarili = tahmin_et_goruntu(yaprak(), "domates")
+
+    # maskeli_logit=-50 -> ürün dışı sınıflar sönük -> maskesiz pay ~1 -> uyarı yok
+    logit_ver(logitler_kur(0.90, DOMATES_HASTALIK, izinli, maskeli_logit=-50.0))
+    uyarisiz = tahmin_et_goruntu(yaprak(), "domates")
+
+    assert uyarili["urun_uyarisi"] is True
+    assert uyarisiz["urun_uyarisi"] is False
+
+    # Uyarı dışındaki her şey aynı: durum, tahmin, güven, adaylar.
+    assert uyarili["durum"] == uyarisiz["durum"] == "basarili"
+    assert uyarili["hastalik"] == uyarisiz["hastalik"]
+    assert uyarili["guven"] == uyarisiz["guven"]
+    assert [a["hastalik"] for a in uyarili["adaylar"]] == \
+        [a["hastalik"] for a in uyarisiz["adaylar"]]
 
 
 # --- Geçersiz ürün ------------------------------------------------------

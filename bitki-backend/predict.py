@@ -32,7 +32,7 @@ def _yapilandirmayi_oku(yol):
     except (OSError, json.JSONDecodeError) as hata:
         raise RuntimeError(f"model_config.json okunamadı ({yol}): {hata}") from hata
 
-    for anahtar in ("model_dosyasi", "sicaklik", "guven_esigi", "saglikli_esigi"):
+    for anahtar in ("model_dosyasi", "sicaklik", "guven_esigi", "saglikli_esigi", "urun_esigi"):
         if anahtar not in veri:
             raise RuntimeError(f"model_config.json'da '{anahtar}' alanı yok ({yol}).")
     return veri
@@ -67,6 +67,20 @@ SICAKLIK = float(yapilandirma["sicaklik"])
 # zorlaştırmak istedik. Sınırlar ve varsayımlar: CLAUDE.md Bölüm 1.
 GUVEN_ESIGI = float(yapilandirma["guven_esigi"])
 SAGLIKLI_ESIGI = float(yapilandirma["saglikli_esigi"])
+
+# Ürün tutarlılık eşiği. MASKEDEN ÖNCEKİ (tüm sınıflar açık) T ile ölçekli
+# softmax'ta, seçilen ürünün sınıflarına düşen olasılık toplamı ("ürün payı")
+# bu değerin altındaysa büyük ihtimalle YANLIŞ ürün seçilmiştir: model
+# olasılığı başka bir ürünün sınıflarına yığmış demektir. O zaman sonuç
+# engellenmez ama kullanıcıya "doğru bitkiyi mi seçtin?" diye sorulur.
+#
+# 0.20 eşiği 163 görüntülük saha VAL setinde seçildi (yakalama %85.6, doğru
+# seçimde yanlış alarm %4.3); 569 görüntülük test seti seçimde kullanılmadı,
+# bir kez raporlandı (yakalama %82.8, yanlış alarm %4.6). Pay, ürünün sınıf
+# sayısından etkilenir (2 sınıflı biberin payı doğal olarak küçük kalır), bu
+# yüzden tek eşik biberi dezavantajlı duruma düşürür -- ayrıntı: CLAUDE.md
+# Bölüm 1 ve docs/model-yol-haritasi.md.
+URUN_ESIGI = float(yapilandirma["urun_esigi"])
 
 
 # --- Sınıflar ve ürün haritası ------------------------------------------
@@ -219,6 +233,16 @@ def tahmin_et_goruntu(img, urun):
     with torch.no_grad():
         logitler = model(x)
 
+        # Ürün tutarlılık payı MASKEDEN ÖNCE hesaplanır: tüm sınıflar açıkken,
+        # T ile ölçekli softmax'ta seçilen ürünün sınıflarına düşen olasılık
+        # toplamı. Maskeden sonra bu her zaman 1.0 olurdu (maske diğerlerini
+        # sıfırlar) ve hiçbir şey ölçemezdik -- bütün bilgi, modelin olasılığı
+        # BAŞKA ürünlere ne kadar dağıttığında. T'ye bölme ölçümdeki gibi
+        # burada da uygulanır; atlanırsa 0.20 eşiği anlamını yitirir.
+        maskesiz_olasiliklar = torch.softmax(logitler / SICAKLIK, dim=1)[0]
+        urun_payi = sum(maskesiz_olasiliklar[i].item() for i in URUN_INDEKSLERI[urun])
+        urun_uyarisi = urun_payi < URUN_ESIGI
+
         # Maske softmax'tan ÖNCE uygulanmalı. Sonra uygulasaydık kesilen
         # sınıfların olasılığı pay toplamına girer, kalan olasılıklar 1'e
         # toplanmaz ve güven skorları ölçtüğümüz değerlerden sapardı.
@@ -243,6 +267,7 @@ def tahmin_et_goruntu(img, urun):
         return {
             "durum": "emin_degil",
             "urun": urun,
+            "urun_uyarisi": urun_uyarisi,
             "mesaj": "Bu yaprağı net tanıyamadım. Daha yakın ve net bir fotoğraf çeker misiniz?",
             "en_yakin_tahmin": tahmin_sinif,
             "en_yakin_tahmin_tr": turkce_ad(tahmin_sinif),
@@ -253,6 +278,7 @@ def tahmin_et_goruntu(img, urun):
         return {
             "durum": "basarili",
             "urun": urun,
+            "urun_uyarisi": urun_uyarisi,
             "hastalik": tahmin_sinif,
             "hastalik_tr": turkce_ad(tahmin_sinif),
             "guven": round(guven * 100, 1),
